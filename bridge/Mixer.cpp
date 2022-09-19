@@ -1835,11 +1835,23 @@ void Mixer::stopTransportIfNeeded(transport::RtcTransport* streamTransport, cons
 
     auto bundleTransportItr = _bundleTransports.find(endpointId);
 
+    bool isBundled = bundleTransportItr != _bundleTransports.end();
     bool audioStreamDeleted = _audioStreams.find(endpointId) == _audioStreams.end();
     bool videoStreamDeleted = _videoStreams.find(endpointId) == _videoStreams.end();
     bool dataStreamDeleted = _dataStreams.find(endpointId) == _dataStreams.end();
 
-    if (bundleTransportItr != _bundleTransports.end())
+    logger::info("stopTransportIfNeeded is called for endpointId %s. Bundled: %c, audio removed %c, video removed %c, "
+                 "data removed %c",
+        _loggableId.c_str(),
+        endpointId.c_str(),
+        isBundled ? 't' : 'f',
+        audioStreamDeleted ? 't' : 'f',
+        videoStreamDeleted ? 't' : 'f',
+        dataStreamDeleted ? 't' : 'f');
+
+    transport = bundleTransportItr->second._transport.get();
+
+    if (isBundled)
     {
         if (audioStreamDeleted && videoStreamDeleted && dataStreamDeleted)
         {
