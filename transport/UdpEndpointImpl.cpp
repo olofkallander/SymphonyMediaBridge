@@ -57,7 +57,7 @@ void UdpEndpointImpl::sendStunTo(const transport::SocketAddress& target,
             {
                 assert(it->second);
 
-                logger::info("!!! sendStunTo, going ot emplace _iceResponseListeners, num of listeners %sz",
+                logger::info("!!! sendStunTo, going ot emplace _iceResponseListeners, num of listeners %zu",
                     _name.c_str(),
                     _iceResponseListeners.size());
 
@@ -88,11 +88,17 @@ void UdpEndpointImpl::unregisterListener(IEvents* listener)
 
 void UdpEndpointImpl::cancelStunTransaction(__uint128_t transactionId)
 {
-    logger::info("!!! cancelStunTransaction, going ot erase _iceResponseListeners, num of listeners %sz",
+    logger::info("!!! cancelStunTransaction, going ot erase _iceResponseListeners, num of listeners %zu",
         _name.c_str(),
         _iceResponseListeners.size());
 
-    const bool posted = _receiveJobs.post([this, transactionId]() { _iceResponseListeners.erase(transactionId); });
+    const bool posted = _receiveJobs.post([this, transactionId]() {
+        logger::info("!!! cancelStunTransaction inside job, going ot erase _iceResponseListeners, num of listeners %zu",
+            _name.c_str(),
+            _iceResponseListeners.size());
+
+        _iceResponseListeners.erase(transactionId);
+    });
     if (!posted)
     {
         logger::warn("failed to post unregister STUN transaction job", _name.c_str());
@@ -117,7 +123,7 @@ void UdpEndpointImpl::internalUnregisterListener(IEvents* listener)
     {
         if (responseListener.second == listener)
         {
-            logger::debug("!!! internalUnregisterListener, going ot erase _iceResponseListeners, num of listeners %sz",
+            logger::debug("!!! internalUnregisterListener, going ot erase _iceResponseListeners, num of listeners %zu",
                 _name.c_str(),
                 _iceResponseListeners.size());
 
@@ -168,7 +174,7 @@ void UdpEndpointImpl::dispatchReceivedPacket(const SocketAddress& srcAddress,
                 const IndexableInteger<__uint128_t, uint32_t> id(transactionId);
                 LOG("STUN response received for transaction %04x%04x%04x", _name.c_str(), id[1], id[2], id[3]);
 
-                logger::info("!!! dispatchReceivedPacket, going ot erase _iceResponseListeners, num of listeners %sz",
+                logger::info("!!! dispatchReceivedPacket, going ot erase _iceResponseListeners, num of listeners %zu",
                     _name.c_str(),
                     _iceResponseListeners.size());
                 _iceResponseListeners.erase(transactionId);
