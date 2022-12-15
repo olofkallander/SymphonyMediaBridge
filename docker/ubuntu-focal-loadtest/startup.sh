@@ -68,7 +68,7 @@ if [ "$1" == "initiator" ]; then
     date -u 2>&1 | tee -a $log_file
 else
     # If not initiator, retreive load_test_config.json.
-    attempt=$(( 120 ))
+    attempt=$(( 240 ))
     echo "Trying to retreive load_test_config.json, current time (UTC):" 2>&1 | tee -a $log_file
     date -u 2>&1 | tee -a $log_file
     while [ $(( attempt )) != 0 ]
@@ -91,7 +91,7 @@ if [ ! -f load_test_config.json ]; then
 fi
 
 # Wait for other test instances.
-source $SCRIPT_DIR/wait_for_others.sh "$5" 30 2>&1 | tee -a $log_file
+source $SCRIPT_DIR/wait_for_others.sh "$5" 60 2>&1 | tee -a $log_file
 if [ ! "$?" ]; then
     echo "Wait for others failed, $? participants are missing. Exiting..."  2>&1 | tee -a $log_file
     exit
