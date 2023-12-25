@@ -1,0 +1,16 @@
+{
+    "configurations": [
+        {
+            "name": "UnitTest debug",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/UnitTest",
+            "args":["--gtest_filter=SimpleJson*"],
+            "cwd":"${workspaceFolder}",
+            "sourceMap": {".": "${workspaceFolder}" },   
+            
+            "linux": {
+            },
+        },
+    ]
+}
