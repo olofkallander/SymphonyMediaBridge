@@ -2,11 +2,12 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
 {
 	"name": "Docker from Image",
-	"image": "europe-west1-docker.pkg.dev/sym-dev-rtc/rtc-jenkins-tools/buildsmb-el7:latest",
+	//"image": "europe-west1-docker.pkg.dev/sym-dev-rtc/rtc-jenkins-tools/buildsmb-el7:latest",
 	"runArgs": [
 		"--security-opt",
 		"seccomp=unconfined"
 	],
+	"build":{"dockerfile": "Dockerfile" },
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
 
