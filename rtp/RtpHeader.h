@@ -114,6 +114,7 @@ struct RtpHeader
     size_t headerLength() const;
     uint8_t* getPayload() { return reinterpret_cast<uint8_t*>(this) + headerLength(); }
     const uint8_t* getPayload() const { return const_cast<RtpHeader*>(this)->getPayload(); }
+    size_t payloadLength(size_t packetSize) const;
 
     RtpHeaderExtension* getExtensionHeader();
     const RtpHeaderExtension* getExtensionHeader() const { return const_cast<RtpHeader*>(this)->getExtensionHeader(); }

@@ -562,8 +562,8 @@ void AudioReceivePipeline::flush()
 {
     _pcmData.clear();
     while (_jitterBuffer.pop())
-    {
-    }
+        ;
+
     _targetDelay = 0; // will cause start over on seqno, rtp timestamp and jitter assessment
     _jitterEmergency.counter = 0;
     _bufferAtTwoFrames = 0;
@@ -576,7 +576,6 @@ size_t AudioReceivePipeline::decodeG711(uint32_t extendedSequenceNumber,
     int16_t* audioData)
 {
     const auto header = rtp::RtpHeader::fromPacket(packet);
-    const int16_t* originalAudioStart = audioData;
     const size_t sampleCount = packet.getLength() - header->headerLength();
 
     if (header->payloadType == codec::Pcma::payloadType)
@@ -592,6 +591,8 @@ size_t AudioReceivePipeline::decodeG711(uint32_t extendedSequenceNumber,
         codec::makeStereo(audioData, sampleCount * 6);
         return sampleCount * 6;
     }
+
+    return 0;
 }
 
 } // namespace codec
