@@ -3,34 +3,46 @@
 #include <cstdint>
 #include <stddef.h>
 
+#include "codec/AudioDecoder.h"
+
 namespace codec
 {
 
-class OpusDecoder
+class OpusDecoder : public AudioDecoder
 {
 public:
     OpusDecoder();
     ~OpusDecoder();
 
     bool isInitialized() const { return _initialized; }
+
+    int32_t decodePacket(uint32_t extendedSequenceNumber,
+        uint64_t timestamp,
+        const unsigned char* payload,
+        size_t payloadLength,
+        int16_t* audioData,
+        size_t pcmSampleCount) override;
+
+    void onUnusedPacketReceived(uint32_t extendedSequenceNumber) override;
+
+private:
     bool hasDecoded() const { return _hasDecodedPacket; }
+
+    int32_t conceal(unsigned char* decodedData, size_t pcmSampleCount);
+    int32_t conceal(const unsigned char* payloadStart,
+        int32_t payloadLength,
+        unsigned char* decodedData,
+        size_t pcmSampleCount);
 
     uint32_t getExpectedSequenceNumber() const { return _sequenceNumber + 1; }
 
+    int32_t getLastPacketDuration();
     int32_t decode(uint32_t extendedSequenceNumber,
         const unsigned char* payloadStart,
         int32_t payloadLength,
         unsigned char* decodedData,
         const size_t framesInDecodedPacket);
 
-    int32_t conceal(unsigned char* decodedData);
-    int32_t conceal(const unsigned char* payloadStart, int32_t payloadLength, unsigned char* decodedData);
-
-    int32_t getLastPacketDuration();
-
-    void onUnusedPacketReceived(uint32_t extendedSequenceNumber);
-
-private:
     struct OpaqueDecoderState;
 
     bool _initialized;

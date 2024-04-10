@@ -1,12 +1,13 @@
 #pragma once
 
+#include "codec/AudioDecoder.h"
 #include <cstddef>
 #include <cstdint>
 
 namespace codec
 {
 
-class PcmaCodec
+class PcmaCodec : public AudioDecoder
 {
 public:
     static void encode(const int16_t* data, uint8_t* target, size_t samples);
@@ -19,7 +20,7 @@ private:
     static int8_t _encodeTable[2048];
 };
 
-class PcmuCodec
+class PcmuCodec : public AudioDecoder
 {
 public:
     static void encode(const int16_t* data, uint8_t* target, size_t samples);

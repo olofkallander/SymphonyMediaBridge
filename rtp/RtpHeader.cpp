@@ -63,6 +63,24 @@ size_t RtpHeader::headerLength() const
     return baseHeaderLength;
 }
 
+size_t RtpHeader::payloadLength(size_t packetSize) const
+{
+    if (padding)
+    {
+        const auto paddingSize = getPayload()[packetSize - 1];
+        if (paddingSize + headerLength() > packetSize)
+        {
+            return 0; // corrupt
+        }
+
+        return packetSize - paddingSize - headerLength();
+    }
+    else
+    {
+        return packetSize - headerLength();
+    }
+}
+
 RtpHeaderExtension::RtpHeaderExtension(const RtpHeaderExtension* extensions) : profile(GENERAL1), length(0)
 {
     if (extensions)
