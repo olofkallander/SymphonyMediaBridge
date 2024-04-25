@@ -8,6 +8,7 @@
 		"seccomp=unconfined"
 	],
 	"build":{"dockerfile": "Dockerfile" },
+	"containerUser":"dev",
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
 
@@ -41,9 +42,11 @@
 		"LD_LIBRARY_PATH": "/usr/local/lib/:/usr/lib/x86_64-linux-gnu",
 		"LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1"
 	},
-	"mounts": [
-		"source=${localWorkspaceFolderBasename}-build,target=${containerWorkspaceFolder}/build,type=volume"
-	  ]
+	
+	
+//	"mounts": [
+//		"source=${localWorkspaceFolderBasename}-build,target=${containerWorkspaceFolder}/build,type=volume"
+//	  ]
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
