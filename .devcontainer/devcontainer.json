@@ -22,7 +22,7 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
-				"ms-vscode.cpptools-extension-pack"
+				"ms-vscode.cpptools-extension-pack",
 				"streetsidesoftware.code-spell-checker",
 				"mhutchie.git-graph",
 				"matepek.vscode-catch2-test-adapter",
@@ -41,7 +41,7 @@
 		"CXX": "clang++",
 		"LD_LIBRARY_PATH": "/usr/local/lib/:/usr/lib/x86_64-linux-gnu",
 		"LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1"
-	},
+	}
 	
 	
 //	"mounts": [
