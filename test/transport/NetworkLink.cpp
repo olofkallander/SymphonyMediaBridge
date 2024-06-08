@@ -32,8 +32,13 @@ bool NetworkLink::push(memory::UniquePacket packet, uint64_t timestamp, bool tcp
         }
         else if (_burstIntervalUs > 0)
         {
+            const auto tau = timestamp - _releaseTime;
             _releaseTime = timestamp + ((IPOVERHEAD + packet->getLength()) * 8 * utils::Time::ms / _bandwidthKbps);
-            addBurstDelay();
+            if (tau > utils::Time::ms * 20)
+            {
+                // emulate radio unit restart
+                addBurstDelay();
+            }
         }
         else
         {
@@ -140,9 +145,9 @@ void NetworkLink::setBurstDeliveryInterval(uint32_t ms)
 
 void NetworkLink::addBurstDelay()
 {
-    if (_burstIntervalUs > 0)
+    if (_burstIntervalUs > 0 && rand() % 100 < 25)
     {
-        uint64_t burstDelay = 1000 * (_burstIntervalUs * 9 / 10 + rand() % (_burstIntervalUs / 5));
+        const uint64_t burstDelay = 1000 * (_burstIntervalUs * 9 / 10 + rand() % (_burstIntervalUs / 5));
         _releaseTime += burstDelay;
     }
 }

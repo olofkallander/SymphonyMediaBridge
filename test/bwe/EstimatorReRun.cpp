@@ -153,6 +153,9 @@ TEST_P(BweRerun, DISABLED_fromTrace)
     bwe::Config config;
     config.congestion.cap.ratio = 0.5;
 
+    config.estimate.minReportedKbps = 200;
+    config.estimate.minKbps = 125;
+    config.estimate.initialKbpsDownlink = 500;
     auto trace = GetParam();
 
     if (trace.empty())

@@ -24,7 +24,8 @@ AudioSource::AudioSource(memory::PacketPoolAllocator& allocator, uint32_t ssrc, 
       _useAudioLevel(true),
       _emulatedAudioType(fakeAudio),
       _pcm16File(nullptr),
-      _packetCount(0)
+      _packetCount(0),
+      _padPackets(false)
 {
 }
 
@@ -155,7 +156,8 @@ memory::UniquePacket AudioSource::getPacket(uint64_t timestamp)
             memory::Packet::size - rtpHeader->headerLength());
         if (bytesEncoded > 0)
         {
-            packet->setLength(rtpHeader->headerLength() + bytesEncoded);
+            packet->setLength(
+                rtpHeader->headerLength() + bytesEncoded + (_padPackets && (_sequenceCounter & 3) == 1 ? 255 : 0));
             return packet;
         }
         else
@@ -213,5 +215,13 @@ bool AudioSource::openPcm16File(const char* filename)
 void AudioSource::enableIntermittentTone(double onRatio)
 {
     _tonePattern.onRatio = onRatio;
+}
+
+void AudioSource::setBandwidth(uint32_t kbps)
+{
+    if (_encoder.isInitialized())
+    {
+        _encoder.setBitrate(kbps);
+    }
 }
 } // namespace emulator

@@ -1,8 +1,8 @@
 #pragma once
 #include "codec/OpusEncoder.h"
 #include "memory/PacketPoolAllocator.h"
+#include "test/bwe/FakeAudioSource.h"
 #include <cstdint>
-
 namespace emulator
 {
 enum Audio
@@ -12,7 +12,7 @@ enum Audio
     Fake,
     Muted
 };
-class AudioSource
+class AudioSource : public fakenet::MediaSource
 {
 public:
     enum PttState
@@ -24,12 +24,15 @@ public:
 
     AudioSource(memory::PacketPoolAllocator& allocator, uint32_t ssrc, Audio fakeAudio, uint32_t ptime = 20);
     ~AudioSource();
-    memory::UniquePacket getPacket(uint64_t timestamp);
-    int64_t timeToRelease(uint64_t timestamp) const;
+    memory::UniquePacket getPacket(uint64_t timestamp) override;
+    int64_t timeToRelease(uint64_t timestamp) const override;
 
     memory::PacketPoolAllocator& getAllocator() { return _allocator; }
 
-    uint32_t getSsrc() const { return _ssrc; }
+    uint32_t getSsrc() const override { return _ssrc; }
+
+    void setBandwidth(uint32_t kbps) override;
+    uint32_t getBandwidth() const override { return 122; }
 
     void setVolume(double normalized) { _amplitude = 15000 * normalized; }
     void setFrequency(double frequency) { _frequency = frequency; }
@@ -40,6 +43,8 @@ public:
     bool openPcm16File(const char* filename);
 
     uint16_t getSequenceCounter() const { return _sequenceCounter; }
+
+    void enablePacketPadding() { _padPackets = true; }
 
 private:
     static const uint32_t maxSentBufferSize = 12 * 1024;
@@ -58,6 +63,7 @@ private:
     Audio _emulatedAudioType;
     FILE* _pcm16File;
     uint32_t _packetCount;
+    bool _padPackets;
 
     struct TonePattern
     {

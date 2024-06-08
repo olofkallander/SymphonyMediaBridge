@@ -55,4 +55,12 @@ int32_t OpusEncoder::encode(const int16_t* decodedData,
         utils::checkedCast<int32_t>(payloadMaxFrames));
 }
 
+void OpusEncoder::setBitrate(uint32_t bitRateKbps)
+{
+    if (_initialized && _state)
+    {
+        opus_encoder_ctl(_state->_state, OPUS_SET_BITRATE(bitRateKbps * 1000));
+    }
+}
+
 } // namespace codec

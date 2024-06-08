@@ -7,6 +7,7 @@
 #include "test/bwe/FakeCall.h"
 #include "test/bwe/FakeCrossTraffic.h"
 #include "test/bwe/FakeVideoSource.h"
+#include "test/integration/emulator/AudioSource.h"
 #include "test/transport/NetworkLink.h"
 #include "utils/Format.h"
 #include <gtest/gtest.h>
@@ -291,4 +292,82 @@ TEST_P(BweEthernet, lowBw)
 
 INSTANTIATE_TEST_SUITE_P(BweEthernetTest,
     BweEthernet,
+    testing::Values(250, 300, 500, 800, 1200, 1500, 1800, 2100, 2700, 3500, 30000));
+
+class BweEthernetAudio : public testing::TestWithParam<uint32_t>
+{
+};
+
+TEST_P(BweEthernetAudio, lowBw)
+{
+    bwe::Config config;
+    config.measurementNoise *= 1.0;
+    config.estimate.minReportedKbps = 200;
+    config.estimate.minKbps = 150;
+
+    const uint32_t linkBw = GetParam();
+
+    bwe::BandwidthEstimator estimator(config);
+    auto* link = new fakenet::NetworkLink("EstimatorTestEasyLink", linkBw, 256 * 1024, 1500);
+    memory::PacketPoolAllocator allocator(1024, "test");
+
+    auto audioSrc = std::make_unique<emulator::AudioSource>(allocator, 987233, emulator::Audio::Opus);
+    if (!audioSrc->openPcm16File("../tools/testfiles/jpsample.raw"))
+    {
+        if (!audioSrc->openPcm16File("../../tools/testfiles/jpsample.raw"))
+        {
+            if (!audioSrc->openPcm16File("tools/testfiles/jpsample.raw"))
+            {
+                return;
+            }
+        }
+    }
+
+    fakenet::Call call(allocator,
+        estimator,
+        link,
+        false,
+        500 * utils::Time::sec,
+        utils::format("_ssdata/estLowAudioBw%u.csv", linkBw).c_str());
+    int count = 0;
+    audioSrc->enablePacketPadding();
+    audioSrc->setBandwidth(45);
+    call.addSource(audioSrc.release());
+
+    while (call.run(utils::Time::sec / 8))
+    {
+        if ((count % 8) == 7)
+        {
+            estimator.getEstimate(call.getTime());
+        }
+        count++;
+
+        if ((count % 16) == 0)
+        {
+            link->injectDelaySpike(12);
+        }
+
+        if (count > (linkBw > 1800 ? 100 * 8 : 20 * 8))
+        {
+            const auto estimate = estimator.getEstimate(call.getTime());
+            const auto limit = std::min(4000.0, linkBw * 0.75);
+            if (estimate < limit)
+            {
+                EXPECT_GT(estimate, limit);
+                break;
+            }
+        }
+    }
+    while (call.run(utils::Time::sec / 8))
+    {
+        if ((count % 8) == 7)
+        {
+            estimator.getEstimate(call.getTime());
+        }
+        count++;
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(BweEthernetTest,
+    BweEthernetAudio,
     testing::Values(250, 300, 500, 800, 1200, 1500, 1800, 2100, 2700, 3500, 30000));
