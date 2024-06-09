@@ -44,7 +44,7 @@ public:
 
     uint16_t getSequenceCounter() const { return _sequenceCounter; }
 
-    void enablePacketPadding() { _padPackets = true; }
+    void enablePacketPadding(uint32_t everyNth) { _padPackets = everyNth; }
 
 private:
     static const uint32_t maxSentBufferSize = 12 * 1024;
@@ -63,7 +63,7 @@ private:
     Audio _emulatedAudioType;
     FILE* _pcm16File;
     uint32_t _packetCount;
-    bool _padPackets;
+    uint32_t _padPackets;
 
     struct TonePattern
     {

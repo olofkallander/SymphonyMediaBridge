@@ -30,19 +30,10 @@ bool NetworkLink::push(memory::UniquePacket packet, uint64_t timestamp, bool tcp
         {
             _releaseTime = timestamp + utils::Time::ms * 20;
         }
-        else if (_burstIntervalUs > 0)
-        {
-            const auto tau = timestamp - _releaseTime;
-            _releaseTime = timestamp + ((IPOVERHEAD + packet->getLength()) * 8 * utils::Time::ms / _bandwidthKbps);
-            if (tau > utils::Time::ms * 20)
-            {
-                // emulate radio unit restart
-                addBurstDelay();
-            }
-        }
         else
         {
-            _releaseTime = timestamp + ((IPOVERHEAD + packet->getLength()) * 8 * utils::Time::ms / _bandwidthKbps);
+            _releaseTime = timestamp + ((IPOVERHEAD + packet->getLength()) * 8 * utils::Time::ms / _bandwidthKbps) +
+                calculateJitterDelay(timestamp);
         }
     }
 
@@ -138,18 +129,26 @@ void NetworkLink::setStaticDelay(uint32_t ms)
     _staticDelay = ms * utils::Time::ms;
 }
 
-void NetworkLink::setBurstDeliveryInterval(uint32_t ms)
+void NetworkLink::configureRadioUnit(uint32_t awaitMoreDataMs, uint32_t maxIdleMs)
 {
-    _burstIntervalUs = ms * 1000;
+    _radioUnit.awaitMoreData = awaitMoreDataMs * 1000000;
+    _radioUnit.maxIdle = maxIdleMs * 1000000;
 }
 
-void NetworkLink::addBurstDelay()
+uint64_t NetworkLink::calculateJitterDelay(uint64_t timestamp)
 {
-    if (_burstIntervalUs > 0 && rand() % 100 < 25)
+    if (!_radioUnit.empty() && _queue.empty())
     {
-        const uint64_t burstDelay = 1000 * (_burstIntervalUs * 9 / 10 + rand() % (_burstIntervalUs / 5));
-        _releaseTime += burstDelay;
+        const auto tau = timestamp - _releaseTime;
+        if (tau > _radioUnit.maxIdle)
+        {
+            auto delay =
+                _radioUnit.awaitMoreData / 2 + (static_cast<uint64_t>(rand()) * 1000) % _radioUnit.awaitMoreData;
+            return delay;
+        }
     }
+
+    return 0;
 }
 
 } // namespace fakenet

@@ -29,7 +29,6 @@ public:
           _queuedBytes(0),
           _bufferCapacity(bufferSize),
           _lossRate(0),
-          _burstIntervalUs(0),
           _bitRate(100 * utils::Time::ms)
     {
     }
@@ -45,7 +44,8 @@ public:
     int64_t timeToRelease(uint64_t timestamp) const;
 
     void setLossRate(double rate) { _lossRate = std::max(0.0, std::min(1.0, rate)); }
-    void setBurstDeliveryInterval(uint32_t ms);
+    void configureRadioUnit(uint32_t awaitMoreDataMs, uint32_t maxIdleMs);
+
     void injectDelaySpike(uint32_t ms);
     void setStaticDelay(uint32_t ms);
 
@@ -63,7 +63,7 @@ public:
 
     static const int IPOVERHEAD = 20 + 14; // IP and DTLS header
 private:
-    void addBurstDelay();
+    uint64_t calculateJitterDelay(uint64_t timestamp);
     memory::UniquePacket popDelayQueue(uint64_t timestamp);
 
     std::string _name;
@@ -89,7 +89,15 @@ private:
     size_t _queuedBytes;
     const size_t _bufferCapacity;
     std::atomic<double> _lossRate;
-    uint64_t _burstIntervalUs;
+    struct RadioUnitConfig
+    {
+        // ns unit
+        uint64_t awaitMoreData = 0;
+        uint64_t maxIdle = 0;
+
+        bool empty() const { return awaitMoreData == 0 && maxIdle == 0; }
+    } _radioUnit;
+
     utils::RateTracker<10> _bitRate;
     std::mutex _pushMutex;
 };

@@ -72,7 +72,7 @@ TEST(BweTest, burstDelivery)
     fakenet::NetworkLink* link = new fakenet::NetworkLink("EstimatorTestEasyLink", 200, 64 * 1024, 1500);
     memory::PacketPoolAllocator allocator(1024, "test");
 
-    link->setBurstDeliveryInterval(45);
+    link->configureRadioUnit(45, 21);
 
     fakenet::Call call(allocator, estimator, link, true, 60 * utils::Time::sec, "_ssdata/burstDelivery.csv");
     call.addSource(new fakenet::FakeCrossTraffic(allocator, 1400, 50));
@@ -150,7 +150,7 @@ TEST(BweTest, plainVideoBwDrop)
     auto* link = new fakenet::NetworkLink("EstimatorTestEasyLink", 3800, 256 * 1024, 1500);
     memory::PacketPoolAllocator allocator(1024, "test");
 
-    link->setBurstDeliveryInterval(5);
+    link->configureRadioUnit(5, 5);
 
     auto* video = new fakenet::FakeVideoSource(allocator, 150, 1);
 
@@ -286,13 +286,22 @@ TEST_P(BweEthernet, lowBw)
         if (count > 6 * 8)
         {
             EXPECT_GT(estimator.getEstimate(call.getTime()), std::min(8500.0, linkBw * 0.8));
+            break;
         }
+    }
+    while (call.run(utils::Time::sec / 8))
+    {
+        if ((count % 8) == 7)
+        {
+            estimator.getEstimate(call.getTime());
+        }
+        count++;
     }
 }
 
 INSTANTIATE_TEST_SUITE_P(BweEthernetTest,
     BweEthernet,
-    testing::Values(250, 300, 500, 800, 1200, 1500, 1800, 2100, 2700, 3500, 30000));
+    testing::Values(250, 300, 500, 800, 1200, 1500, 1800, 2100, 3500, 5000, 30000));
 
 class BweEthernetAudio : public testing::TestWithParam<uint32_t>
 {
@@ -323,6 +332,13 @@ TEST_P(BweEthernetAudio, lowBw)
         }
     }
 
+    fakenet::FakeVideoSource* video = nullptr;
+    if (linkBw > 400)
+    {
+        video = new fakenet::FakeVideoSource(allocator, 150, 1);
+        video->setBandwidth(linkBw * 0.7);
+    }
+
     fakenet::Call call(allocator,
         estimator,
         link,
@@ -330,7 +346,8 @@ TEST_P(BweEthernetAudio, lowBw)
         500 * utils::Time::sec,
         utils::format("_ssdata/estLowAudioBw%u.csv", linkBw).c_str());
     int count = 0;
-    audioSrc->enablePacketPadding();
+    audioSrc->enablePacketPadding(2);
+    link->configureRadioUnit(1, 18);
     audioSrc->setBandwidth(45);
     call.addSource(audioSrc.release());
 
@@ -342,15 +359,16 @@ TEST_P(BweEthernetAudio, lowBw)
         }
         count++;
 
-        if ((count % 16) == 0)
+        if (video && count == 20 * 8)
         {
-            link->injectDelaySpike(12);
+            call.addSource(video);
+            video = nullptr;
         }
 
         if (count > (linkBw > 1800 ? 100 * 8 : 20 * 8))
         {
             const auto estimate = estimator.getEstimate(call.getTime());
-            const auto limit = std::min(4000.0, linkBw * 0.75);
+            const auto limit = std::min(800.0, linkBw * 0.70);
             if (estimate < limit)
             {
                 EXPECT_GT(estimate, limit);
@@ -366,8 +384,9 @@ TEST_P(BweEthernetAudio, lowBw)
         }
         count++;
     }
+    EXPECT_GT(estimator.getEstimate(call.getTime()), std::min(5000.0, linkBw * 0.90));
 }
 
 INSTANTIATE_TEST_SUITE_P(BweEthernetTest,
     BweEthernetAudio,
-    testing::Values(250, 300, 500, 800, 1200, 1500, 1800, 2100, 2700, 3500, 30000));
+    testing::Values(250, 300, 500, 800, 1200, 1500, 1800, 2100, 3500, 5000, 30000));

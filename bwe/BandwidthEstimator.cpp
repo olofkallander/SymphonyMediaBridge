@@ -111,7 +111,7 @@ void BandwidthEstimator::update(uint32_t packetSize, uint64_t transmitTimeNs, ui
     {
         _packetSize0 = packetSize;
     }
-    else if (observedDelay > expectedDelay && tau > 20.0 && expectedState(QueuedBits) < _config.mtu * 8 * 3)
+    else if (observedDelay > expectedDelay && tau > 21.0 && expectedState(QueuedBits) < _config.mtu * 8 * 3)
     {
         // inter transmit interval larger than 20ms risk having radio shut down. adjust co up
         _state(ClockOffset) += std::min(30.0, observedDelay - expectedDelay);
