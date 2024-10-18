@@ -442,7 +442,6 @@ set(FILES
         utils/IdGenerator.h
         utils/MersienneRandom.h
         utils/Optional.h
-        utils/Pacer.cpp
         utils/Pacer.h
         utils/ScopedFileHandle.h
         utils/ScopedInvariantChecker.h
