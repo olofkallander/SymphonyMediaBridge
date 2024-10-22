@@ -77,6 +77,8 @@ public:
 
     void stop();
 
+    bool unprotectRtpAgain(memory::Packet& rtpPacket, uint32_t rolloverCounter);
+
 private:
     void dtlsHandShake();
     void logSslError(const char* msg, int sslCode);

@@ -614,7 +614,7 @@ bool SrtpClient::createSrtp()
     createResult = srtp_create(&_remoteSrtp, &srtpPolicy);
     if (createResult != srtp_err_status_ok)
     {
-        logger::error("Failed to create localSrtp: %d", _loggableId.c_str(), createResult);
+        logger::error("Failed to create remoteSrtp: %d", _loggableId.c_str(), createResult);
         return false;
     }
 
@@ -687,7 +687,7 @@ bool SrtpClient::createSrtp(const srtp::AesKey& remoteKey)
     createResult = srtp_create(&_remoteSrtp, &srtpPolicy);
     if (createResult != srtp_err_status_ok)
     {
-        logger::error("Failed to create localSrtp: %d", _loggableId.c_str(), createResult);
+        logger::error("Failed to create remoteSrtp: %d", _loggableId.c_str(), createResult);
         return false;
     }
 
@@ -891,4 +891,102 @@ void SrtpClient::stop()
 {
     _state = State::IDLE;
 }
+
+/** This method is used decrypt the first packet received in case it may have ROC > 0. libsrtp cannot register a stream
+ * if ROC > 0 regardless if you set roll over counter first. You will not know that ROC=1 if all packets before roll
+ * over were lost. This can happen if the seqno starts near 65535.
+ * Do not use this method if you have already decrypted the stream before. This method will remove the stream if it
+ * exists.
+ */
+bool SrtpClient::unprotectRtpAgain(memory::Packet& packet, uint32_t rolloverCounter)
+{
+    assert(_isInitialized);
+
+    if (_mode == srtp::Mode::NULL_CIPHER)
+    {
+        return true;
+    }
+
+    if (!_localSrtp || !_remoteSrtp || _state != State::CONNECTED)
+    {
+        return false;
+    }
+
+    // srtp_unprotect assumes data is word aligned
+    assert(memory::isAligned<uint32_t>(packet.get()));
+
+    DBGCHECK_SINGLETHREADED(_mutexGuard);
+
+    auto bufferLength = utils::checkedCast<int32_t>(packet.getLength());
+    if (rtp::isRtpPacket(packet))
+    {
+        const auto rtpHeader = rtp::RtpHeader::fromPacket(packet);
+        if (!rtpHeader)
+        {
+            assert(false);
+            return false;
+        }
+        const uint32_t ssrc = rtpHeader->ssrc;
+
+        {
+            // use remote srtp context to fake a packet with ROC=0
+            alignas(sizeof(uint32_t)) uint8_t fakePacketRoc0[40]{0};
+            auto fakeHeader = reinterpret_cast<rtp::RtpHeader*>(fakePacketRoc0);
+            fakeHeader->ssrc = 1;
+            fakeHeader->sequenceNumber = 65534;
+            fakeHeader->version = 2;
+            fakeHeader->timestamp = 12345;
+            int fakeLength = 20;
+
+            // remote context is used for decryption but we will use it for encryption once and then remove the stream
+            // to be able to decrypt without replay error.
+            const auto encryptStatus = srtp_protect(_remoteSrtp, fakePacketRoc0, &fakeLength);
+            const auto rmStatus = srtp_remove_stream(_remoteSrtp, htonl(ssrc));
+            const auto decryptStatus = srtp_unprotect(_remoteSrtp, fakePacketRoc0, &fakeLength);
+            if (encryptStatus || rmStatus || decryptStatus)
+            {
+                logger::warn("srtp failed to fake roc0 packet errors: %d, %d, %d, ssrc %u, seqno %u",
+                    _loggableId.c_str(),
+                    encryptStatus,
+                    rmStatus,
+                    decryptStatus,
+                    fakeHeader->ssrc.get(),
+                    fakeHeader->sequenceNumber.get());
+                return false;
+            }
+
+            if (decryptStatus)
+            {
+                return false;
+            }
+        }
+
+        // try decrypting the packet again after setting ROC.
+        srtp_set_stream_roc(_remoteSrtp, ssrc, rolloverCounter);
+        const auto result = srtp_unprotect(_remoteSrtp, packet.get(), &bufferLength);
+        if (result != srtp_err_status_ok)
+        {
+            if (_rtpAntiSpam.canLog())
+            {
+                logger::warn("srtp unprotectRtpAgain error: %d, ssrc %u, seq %u, ts %u",
+                    _loggableId.c_str(),
+                    static_cast<int32_t>(result),
+                    rtpHeader->ssrc.get(),
+                    rtpHeader->sequenceNumber.get(),
+                    rtpHeader->timestamp.get());
+            }
+            return false;
+        }
+    }
+    else
+    {
+        assert(false);
+        logger::error("packet is not RTP. unprotectRtpAgain", _loggableId.c_str());
+        return false;
+    }
+
+    packet.setLength(utils::checkedCast<size_t>(bufferLength));
+    return true;
+}
+
 } // namespace transport

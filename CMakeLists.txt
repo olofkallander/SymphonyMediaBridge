@@ -501,8 +501,6 @@ set(TEST_LIB_FILES
     test/integration/FFTanalysis.cpp
     test/sctp/SctpEndpoint.h
     test/sctp/SctpEndpoint.cpp
-    test/transport/SrtpProtectJob.cpp
-    test/transport/SrtpProtectJob.h
     test/transport/SrtpUnprotectJob.cpp
     test/transport/SrtpUnprotectJob.h
     test/transport/FakeNetwork.h
