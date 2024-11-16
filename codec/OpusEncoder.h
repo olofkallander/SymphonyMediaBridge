@@ -20,6 +20,8 @@ public:
         unsigned char* payloadStart,
         const size_t payloadMaxFrames);
 
+    void setBitrate(uint32_t bitRateKbps);
+
 private:
     struct OpaqueEncoderState;
 
