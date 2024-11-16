@@ -567,8 +567,6 @@ set(TEST_LIB_FILES
     test/bwe/FakeMedia.cpp
     test/bwe/FakeCrossTraffic.h
     test/bwe/FakeCrossTraffic.cpp
-    test/bwe/BwBurstTracker.h
-    test/bwe/BwBurstTracker.cpp
     test/utils/ApiUtils.cpp
     test/bridge/DummyRtcTransport.h
 )
