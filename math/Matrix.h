@@ -147,8 +147,8 @@ public:
         }
     }
 
-    constexpr int columns() const { return N; }
-    constexpr int rows() const { return M; }
+    constexpr u_int32_t columns() const { return N; }
+    constexpr u_int32_t rows() const { return M; }
 
     static Matrix I()
     {
