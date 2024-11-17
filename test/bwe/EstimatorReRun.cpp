@@ -205,7 +205,7 @@ TEST_P(BweRerun, DISABLED_fromTrace)
         const auto localTimestamp = double(item.receiveTimestamp - start) / 1000000;
         const auto sendTime = sendTimeDial.toAbsoluteTime(item.transmitTimestamp, item.receiveTimestamp);
 
-        estimator.update(item.size, sendTime, item.receiveTimestamp);
+        estimator.onPacketReceived(item.size, sendTime, item.receiveTimestamp);
         auto bw = estimator.getEstimate(item.receiveTimestamp);
         auto state = estimator.getState();
         auto delay = estimator.getDelay();
@@ -342,7 +342,7 @@ TEST_P(BweRerunLimit, DISABLED_limitedLink)
 
                     auto packetSendTime =
                         sendTimeDial.toAbsoluteTime(packetItem->transmitTimestamp, wallClock + utils::Time::sec * 10);
-                    estimator.update(packetItem->size, packetSendTime, wallClock);
+                    estimator.onPacketReceived(packetItem->size, packetSendTime, wallClock);
 
                     auto bw = estimator.getEstimate(item.receiveTimestamp);
                     auto state = estimator.getState();
@@ -381,7 +381,7 @@ TEST_P(BweRerunLimit, DISABLED_limitedLink)
         }
         auto* packetItem = reinterpret_cast<logger::PacketLogItem*>(packet->get());
         auto sendTime = sendTimeDial.toAbsoluteTime(packetItem->transmitTimestamp, wallClock + utils::Time::sec * 10);
-        estimator.update(packetItem->size, sendTime, wallClock);
+        estimator.onPacketReceived(packetItem->size, sendTime, wallClock);
         auto bw = estimator.getEstimate(item.receiveTimestamp);
         auto state = estimator.getState();
         auto delay = estimator.getDelay();
