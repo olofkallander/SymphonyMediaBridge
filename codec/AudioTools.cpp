@@ -71,6 +71,22 @@ void subtractFromMix(const int16_t* srcAudio, int16_t* mixAudio, size_t count, d
     }
 }
 
+void makeMono(const int16_t* srcAudio, int16_t* mixAudio, size_t count, double amplification)
+{
+    if (amplification == 1.0)
+    {
+        for (size_t i = 0; i < count; ++i)
+        {
+            mixAudio[i] = srcAudio[i * 2] + srcAudio[i * 2 + 1];
+        }
+    }
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        mixAudio[i] = amplification * srcAudio[i * 2] + amplification * srcAudio[i * 2 + 1];
+    }
+}
+
 /**
  * Eliminate samples at times where energy is low which makes it less audible.
  */

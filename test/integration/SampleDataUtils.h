@@ -34,8 +34,6 @@ public:
     // generates requested nr of RTP packets with Opus-encoded buzz
     static std::vector<memory::Packet> generateOpusRtpStream(size_t nrOfPackets);
 
-    static AudioData decodeOpusRtpStream(const std::vector<memory::Packet>& packets);
-
     static bool verifyAudioLevel(const std::vector<memory::Packet>& packets, const AudioData& audio);
 
     static void assertSilence(const char* name,

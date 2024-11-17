@@ -25,6 +25,24 @@ void makeStereo(T* data, size_t count)
     }
 }
 
+template <typename T>
+void leftChannel(T* data, T* target, size_t count)
+{
+    for (int i = count - 1; i >= 0; i--)
+    {
+        target[i] = data[i * 2];
+    }
+}
+
+template <typename T>
+void rightChannel(T* data, T* target, size_t count)
+{
+    for (int i = count - 1; i >= 0; i--)
+    {
+        target[i] = data[i * 2 + 1];
+    }
+}
+
 size_t compactStereo(int16_t* pcmData, size_t size);
 size_t compactStereoTroughs(int16_t* pcmData,
     size_t samples,
@@ -48,5 +66,7 @@ void swingTail(int16_t* data, uint32_t sampleRate, size_t count);
 
 void addToMix(const int16_t* srcAudio, int16_t* mixAudio, size_t count, double amplification);
 void subtractFromMix(const int16_t* srcAudio, int16_t* mixAudio, size_t count, double amplification);
+
+void makeMono(const int16_t* srcAudio, int16_t* mixAudio, size_t count, double amplification);
 
 } // namespace codec

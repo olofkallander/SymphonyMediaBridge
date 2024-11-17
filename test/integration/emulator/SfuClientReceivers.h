@@ -144,10 +144,10 @@ public:
     {
         int16_t decodedData[memory::AudioPacket::size];
 
-        auto count = _decoder.decode(extendedSequenceNumber,
+        auto count = _decoder.decodePacket(extendedSequenceNumber,
             opusData,
             payloadLength,
-            reinterpret_cast<unsigned char*>(decodedData),
+            decodedData,
             memory::AudioPacket::size / codec::Opus::channelsPerFrame / codec::Opus::bytesPerSample);
 
         if (extendedSequenceNumber % 50 == 0)
