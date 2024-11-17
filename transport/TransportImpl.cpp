@@ -1318,7 +1318,7 @@ bool TransportImpl::doBandwidthEstimation(const uint64_t receiveTime,
 
     const auto sendTime = _sendTimeTracker.toAbsoluteTime(absSendTime.get(), receiveTime);
 
-    _bwe->update(packetSize, sendTime, receiveTime);
+    _bwe->onPacketReceived(packetSize, sendTime, receiveTime);
     const uint32_t newEstimate = static_cast<uint32_t>(_bwe->getEstimate(receiveTime));
 
     _inboundMetrics.estimatedKbps = newEstimate;

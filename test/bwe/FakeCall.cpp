@@ -107,7 +107,7 @@ bool Call::run(uint64_t period)
             if (packet->get()[0] != FakeCrossTraffic::CROSS_TRAFFIC_PROTOCOL)
             {
                 auto& header = getMetaData(*packet);
-                _bwe.update(packet->getLength() + IPDTLSOVERHEAD, header.sendTime, t);
+                _bwe.onPacketReceived(packet->getLength() + IPDTLSOVERHEAD, header.sendTime, t);
                 if (_csvWriter)
                 {
                     const auto state = _bwe.getState();

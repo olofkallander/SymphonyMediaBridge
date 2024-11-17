@@ -34,6 +34,7 @@ struct Config
         double recoveryTime = 10.1;
         double thresholdMs = 500.0;
 
+        uint64_t toleratedCongestionDurationMs = 500;
         // estimate cap after repeated congestion events
         struct
         {
@@ -42,7 +43,7 @@ struct Config
             // cap estimate at this level of average link estimate
             double ratio = 0.5;
             // max choke time before bw floor is cancelled
-            uint32_t chokeToleranceMs = 1000.0;
+            uint32_t chokeToleranceMs = 1000;
         } cap;
     } congestion;
 
@@ -67,7 +68,7 @@ class BandwidthEstimator : public Estimator
 public:
     explicit BandwidthEstimator(const Config& config);
 
-    void update(uint32_t packetSize, uint64_t transmitTimeNs, uint64_t receiveTimeNs) override;
+    void onPacketReceived(uint32_t packetSize, uint64_t transmitTimeNs, uint64_t receiveTimeNs) override;
     void onUnmarkedTraffic(uint32_t packetSize, uint64_t receiveTimeNs) override;
 
     math::Matrix<double, 3> getState() const { return _state; }
@@ -75,6 +76,7 @@ public:
     double getEstimate(uint64_t timestamp) const override;
     double getDelay() const override;
     double predictDelay() const;
+    double getOffsetMs() const override { return _state(2); }
 
     // kbps
     double getReceiveRate(uint64_t timestamp) const override
@@ -93,7 +95,12 @@ private:
     math::Matrix<double, 3> transitionState(uint32_t packetSize, double tau, const math::Matrix<double, 3>& prevState);
     double predictAbsoluteDelay(const math::Matrix<double, 3>& state) const;
 
-    double analyseCongestion(double actualDelay, uint32_t packetSize, uint64_t timestamp);
+    double analyseCongestion(const math::Matrix<double, 3>& expectedState,
+        double actualDelay,
+        double owdError,
+        uint32_t packetSize,
+        uint64_t timestamp);
+
     void calculateProcessNoise(const math::Matrix<double, 3>& currentState,
         double actualDelay,
         double observationError,
@@ -148,6 +155,8 @@ private:
         void countDelays(double delayError);
 
         double estimateBeforeCongestion;
+        uint64_t timestampUncongested;
+        double holdScale = 1.0; // used to scale measurement to prevent early dropping because of transient jitter event
     } _congestion;
 };
 
