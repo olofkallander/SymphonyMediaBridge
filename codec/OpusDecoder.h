@@ -8,7 +8,7 @@
 namespace codec
 {
 
-class OpusDecoder : public AudioDecoder
+class OpusDecoder final : public AudioDecoder
 {
 public:
     OpusDecoder();
@@ -17,21 +17,20 @@ public:
     bool isInitialized() const { return _initialized; }
 
     int32_t decodePacket(uint32_t extendedSequenceNumber,
-        uint64_t timestamp,
         const unsigned char* payload,
         size_t payloadLength,
         int16_t* audioData,
         size_t pcmSampleCount) override;
 
     void onUnusedPacketReceived(uint32_t extendedSequenceNumber) override;
+    int32_t conceal(int16_t* audioData, size_t audioBufferFrames) override;
 
 private:
     bool hasDecoded() const { return _hasDecodedPacket; }
 
-    int32_t conceal(unsigned char* decodedData, size_t pcmSampleCount);
     int32_t conceal(const unsigned char* payloadStart,
         int32_t payloadLength,
-        unsigned char* decodedData,
+        int16_t* decodedData,
         size_t pcmSampleCount);
 
     uint32_t getExpectedSequenceNumber() const { return _sequenceNumber + 1; }

@@ -66,7 +66,7 @@ int32_t OpusDecoder::decode(uint32_t extendedSequenceNumber,
 }
 
 // re-construct packet before the most previously lost
-int32_t OpusDecoder::conceal(unsigned char* pcmData, const size_t pcmSampleCount)
+int32_t OpusDecoder::conceal(int16_t* pcmData, const size_t pcmSampleCount)
 {
     if (!_initialized)
     {
@@ -86,7 +86,7 @@ int32_t OpusDecoder::conceal(unsigned char* pcmData, const size_t pcmSampleCount
 // re-construct the packet previous to the received packet
 int32_t OpusDecoder::conceal(const unsigned char* payloadStart,
     int32_t payloadLength,
-    unsigned char* decodedData,
+    int16_t* decodedData,
     const size_t pcmSampleCount)
 {
     if (!_initialized)
@@ -127,7 +127,6 @@ void OpusDecoder::onUnusedPacketReceived(uint32_t extendedSequenceNumber)
 }
 
 int32_t OpusDecoder::decodePacket(const uint32_t extendedSequenceNumber,
-    const uint64_t timestamp,
     const unsigned char* payload,
     const size_t payloadLength,
     int16_t* audioData,
@@ -150,11 +149,11 @@ int32_t OpusDecoder::decodePacket(const uint32_t extendedSequenceNumber,
         }
 
         const size_t bufferPacketcountCapacity = maxPcmSamples / lastSampleCount;
-        const auto concealCount =
-            std::min(std::min(2u, bufferPacketcountCapacity), extendedSequenceNumber - getExpectedSequenceNumber() - 1);
+        const auto concealCount = std::min(std::min<uint32_t>(2u, bufferPacketcountCapacity),
+            extendedSequenceNumber - getExpectedSequenceNumber() - 1);
         for (uint32_t i = 0; concealCount > 1 && i < concealCount - 1; ++i)
         {
-            const auto decodedFrames = conceal(reinterpret_cast<uint8_t*>(audioData, maxPcmSamples - samplesProduced));
+            const auto decodedFrames = conceal(audioData, maxPcmSamples - samplesProduced);
             if (decodedFrames > 0)
             {
                 audioData += Opus::channelsPerFrame * decodedFrames;
@@ -162,8 +161,7 @@ int32_t OpusDecoder::decodePacket(const uint32_t extendedSequenceNumber,
             }
         }
 
-        const auto decodedFrames =
-            conceal(payload, payloadLength, reinterpret_cast<uint8_t*>(audioData), maxPcmSamples - samplesProduced);
+        const auto decodedFrames = conceal(payload, payloadLength, audioData, maxPcmSamples - samplesProduced);
         if (decodedFrames > 0)
         {
             audioData += Opus::channelsPerFrame * decodedFrames;

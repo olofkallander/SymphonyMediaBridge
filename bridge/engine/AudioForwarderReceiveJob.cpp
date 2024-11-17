@@ -39,10 +39,10 @@ void AudioForwarderReceiveJob::decode(const memory::Packet& opusPacket, memory::
     codec::OpusDecoder& decoder = *_ssrcContext.opusDecoder;
     auto pcmHeader = rtp::RtpHeader::fromPacket(pcmPacket);
     const auto opusHeader = rtp::RtpHeader::fromPacket(opusPacket);
-    const auto decodedFrames = decoder.decode(_extendedSequenceNumber,
+    const auto decodedFrames = decoder.decodePacket(_extendedSequenceNumber,
         opusHeader->getPayload(),
         opusPacket.getLength() - opusHeader->headerLength(),
-        pcmHeader->getPayload(),
+        reinterpret_cast<int16_t*>(pcmHeader->getPayload()),
         framesInPacketBuffer);
 
     if (decodedFrames > 0)

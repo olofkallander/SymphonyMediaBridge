@@ -75,74 +75,6 @@ bool AudioReceivePipeline::updateTargetDelay(double delay)
     return true;
 }
 
-// produces up to 4 packets of stereo pcm data
-size_t AudioReceivePipeline::decodePacket(uint32_t extendedSequenceNumber,
-    const uint64_t timestamp,
-    const memory::Packet& packet,
-    int16_t* audioData)
-{
-    const auto header = rtp::RtpHeader::fromPacket(packet);
-    const int16_t* originalAudioStart = audioData;
-
-    if (_decoder.hasDecoded() && extendedSequenceNumber != _decoder.getExpectedSequenceNumber())
-    {
-        const int32_t lossCount = static_cast<int32_t>(extendedSequenceNumber - _decoder.getExpectedSequenceNumber());
-        if (lossCount <= 0)
-        {
-            logger::debug("%u Old opus packet sequence %u expected %u, discarding",
-                "AudioReceivePipeline",
-                _ssrc,
-                extendedSequenceNumber,
-                _decoder.getExpectedSequenceNumber());
-            return 0;
-        }
-
-        logger::debug("%u Lost opus packet sequence %u expected %u, fec",
-            "AudioReceivePipeline",
-            _ssrc,
-            extendedSequenceNumber,
-            _decoder.getExpectedSequenceNumber());
-
-        const auto concealCount = std::min(2u, extendedSequenceNumber - _decoder.getExpectedSequenceNumber() - 1);
-        for (uint32_t i = 0; concealCount > 1 && i < concealCount - 1; ++i)
-        {
-            const auto decodedFrames = _decoder.conceal(reinterpret_cast<uint8_t*>(audioData));
-            if (decodedFrames > 0)
-            {
-                audioData += _config.channels * decodedFrames;
-            }
-        }
-
-        const auto opusPayloadLength = packet.getLength() - header->headerLength();
-        const auto decodedFrames =
-            _decoder.conceal(header->getPayload(), opusPayloadLength, reinterpret_cast<uint8_t*>(audioData));
-        if (decodedFrames > 0)
-        {
-            audioData += _config.channels * decodedFrames;
-        }
-    }
-
-    const auto decodedFrames = _decoder.decode(extendedSequenceNumber,
-        header->getPayload(),
-        packet.getLength() - header->headerLength(),
-        reinterpret_cast<uint8_t*>(audioData),
-        _samplesPerPacket);
-
-    if (decodedFrames > 0)
-    {
-        audioData += _config.channels * decodedFrames;
-    }
-
-    const size_t samplesProduced = (audioData - originalAudioStart) / _config.channels;
-    if (samplesProduced < _samplesPerPacket / 2)
-    {
-        logger::warn("%u failed to decode opus %zu", "AudioReceivePipeline", _ssrc, samplesProduced);
-        return samplesProduced;
-    }
-
-    return samplesProduced;
-}
-
 // after a number of packets that could not be compressed using current threshold
 // increase the threshold so more samples may be eligible for compression.
 void AudioReceivePipeline::adjustReductionPower(uint32_t recentReduction)
@@ -437,11 +369,18 @@ bool AudioReceivePipeline::dtxHandler(const int16_t sequenceAdvance,
 
 namespace
 {
-bool isG711(const memory::Packet& packet)
+bool isPcma(const memory::Packet& packet)
 {
     auto rtpHeader = rtp::RtpHeader::fromPacket(packet);
-    return rtpHeader->payloadType == codec::Pcma::payloadType || rtpHeader->payloadType == codec::Pcmu::payloadType;
+    return rtpHeader->payloadType == codec::Pcma::payloadType;
 }
+
+bool isPcmu(const memory::Packet& packet)
+{
+    auto rtpHeader = rtp::RtpHeader::fromPacket(packet);
+    return rtpHeader->payloadType == codec::Pcmu::payloadType;
+}
+
 } // namespace
 
 void AudioReceivePipeline::process(const uint64_t timestamp)
@@ -486,28 +425,37 @@ void AudioReceivePipeline::process(const uint64_t timestamp)
         const uint32_t extendedSequenceNumber = _head.extendedSequenceNumber + sequenceAdvance;
         auto packet = _jitterBuffer.pop();
 
-        int16_t audioData[_samplesPerPacket * 4 * _config.channels];
+        const uint32_t audioSampleCount = _samplesPerPacket * 4 * _config.channels;
+        int16_t audioData[audioSampleCount];
         size_t decodedSamples = 0;
+
+        AudioDecoder* decoder = &_opusDecoder;
+        if (isPcma(*packet))
+        {
+            decoder = &_pcmaDecoder;
+        }
+        else if (isPcmu(*packet))
+        {
+            decoder = &_pcmuDecoder;
+        }
 
         if (isDiscardedPacket(*packet))
         {
-            if (!isG711(*packet))
-            {
-                decodedSamples = std::max(480u, _metrics.receivedRtpCyclesPerPacket);
-                _decoder.onUnusedPacketReceived(extendedSequenceNumber);
-            }
+            decodedSamples = std::max(480u, _metrics.receivedRtpCyclesPerPacket);
+            decoder->onUnusedPacketReceived(extendedSequenceNumber);
+
             std::memset(audioData, 0, decodedSamples);
         }
         else
         {
-            if (!isG711(*packet))
-            {
-                decodedSamples = decodePacket(extendedSequenceNumber, timestamp, *packet, audioData);
-            }
-            else
-            {
-                decodedSamples = decodeG711(extendedSequenceNumber, timestamp, *packet, audioData);
-            }
+            auto rtpHeader = rtp::RtpHeader::fromPacket(*packet);
+
+            decoder->decodePacket(extendedSequenceNumber,
+                rtpHeader->getPayload(),
+                packet->getLength() - rtpHeader->headerLength(),
+                audioData,
+                audioSampleCount);
+
             if (decodedSamples > 0 && sequenceAdvance == 1)
             {
                 _metrics.receivedRtpCyclesPerPacket = decodedSamples;
@@ -568,31 +516,6 @@ void AudioReceivePipeline::flush()
     _jitterEmergency.counter = 0;
     _bufferAtTwoFrames = 0;
     _elimination = SampleElimination();
-}
-
-size_t AudioReceivePipeline::decodeG711(uint32_t extendedSequenceNumber,
-    const uint64_t timestamp,
-    const memory::Packet& packet,
-    int16_t* audioData)
-{
-    const auto header = rtp::RtpHeader::fromPacket(packet);
-    const size_t sampleCount = packet.getLength() - header->headerLength();
-
-    if (header->payloadType == codec::Pcma::payloadType)
-    {
-        _pcmaDecoder.decode(header->getPayload(), audioData, sampleCount);
-        codec::makeStereo(audioData, sampleCount * 6);
-        return sampleCount * 6;
-    }
-
-    if (header->payloadType == codec::Pcmu::payloadType)
-    {
-        _pcmuDecoder.decode(header->getPayload(), audioData, sampleCount);
-        codec::makeStereo(audioData, sampleCount * 6);
-        return sampleCount * 6;
-    }
-
-    return 0;
 }
 
 } // namespace codec

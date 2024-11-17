@@ -98,10 +98,10 @@ private:
     rtp::JitterEstimator _estimator;
 
     const int _audioLevelExtensionId;
-    codec::OpusDecoder _decoder;
+    codec::OpusDecoder _opusDecoder;
     codec::NoiseFloor _noiseFloor;
-    codec::PcmaCodec _pcmaDecoder;
-    codec::PcmuCodec _pcmuDecoder;
+    codec::PcmaDecoder _pcmaDecoder;
+    codec::PcmuDecoder _pcmuDecoder;
 
     uint32_t _targetDelay;
     struct SampleElimination

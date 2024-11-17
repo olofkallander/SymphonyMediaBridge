@@ -207,53 +207,6 @@ std::vector<memory::Packet> SampleDataUtils::generateOpusRtpStream(DurationItera
     return result;
 }
 
-SampleDataUtils::AudioData SampleDataUtils::decodeOpusRtpStream(const std::vector<memory::Packet>& packets)
-{
-    std::vector<int16_t> result;
-    static_assert(sizeof(decltype(result)::value_type) == codec::Opus::bytesPerSample, "bad PCM data type in tests");
-    codec::OpusDecoder decoder;
-    assert(decoder.isInitialized());
-    StreamSsrcVerifier streamSsrcVerifier;
-
-    for (const auto& packet : packets)
-    {
-        const bool isRtp = rtp::isRtpPacket(packet);
-        assert(isRtp || rtp::isRtcpPacket(packet));
-        if (!isRtp)
-        {
-            continue;
-        }
-        auto rtpHeader = rtp::RtpHeader::fromPacket(packet);
-        const uint32_t ssrc = rtpHeader->ssrc;
-        const uint16_t sequenceNumber = rtpHeader->sequenceNumber;
-        streamSsrcVerifier.observePacketSsrc(ssrc);
-        assert(rtpHeader->payloadType == codec::Opus::payloadType);
-
-        uint8_t decodedData[memory::Packet::size];
-        const uint32_t headerLength = rtpHeader->headerLength();
-        const uint32_t payloadLength = packet.getLength() - headerLength;
-        auto payloadStart = rtpHeader->getPayload();
-
-        if (decoder.getExpectedSequenceNumber() != 0)
-        {
-            assert(sequenceNumber == decoder.getExpectedSequenceNumber());
-        }
-
-        const auto framesInPacketBuffer =
-            memory::Packet::size / codec::Opus::channelsPerFrame / codec::Opus::bytesPerSample;
-        const auto decodedFrames =
-            decoder.decode(sequenceNumber, payloadStart, payloadLength, decodedData, framesInPacketBuffer);
-        assert(decodedFrames > 0);
-        const auto decodedSamplesCount = decodedFrames * codec::Opus::channelsPerFrame;
-
-        result.resize(result.size() + decodedSamplesCount);
-        memcpy(&result[result.size() - decodedSamplesCount],
-            decodedData,
-            decodedSamplesCount * codec::Opus::bytesPerSample);
-    }
-
-    return result;
-}
 
 void SampleDataUtils::fft(CmplxArray& x)
 {
