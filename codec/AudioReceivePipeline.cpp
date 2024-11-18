@@ -348,6 +348,8 @@ bool AudioReceivePipeline::dtxHandler(const int16_t sequenceAdvance,
     const int64_t timestampAdvance,
     const uint32_t totalJitterBufferSize)
 {
+    // TODO we must use conceal method of decoder to append tail on audio when dtx happens.
+
     const bool isDTX =
         sequenceAdvance == 1 && timestampAdvance > static_cast<int32_t>(_metrics.receivedRtpCyclesPerPacket);
 
