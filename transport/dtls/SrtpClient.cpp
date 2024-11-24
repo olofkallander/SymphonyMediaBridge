@@ -919,7 +919,7 @@ bool SrtpClient::unprotectFirstRtp(memory::Packet& packet, uint32_t& rolloverCou
     if (!rtp::isRtpPacket(packet))
     {
         assert(false);
-        logger::error("packet is not RTP. unprotectRtpAgain", _loggableId.c_str());
+        logger::error("packet is not RTP. unprotectFirstRtp", _loggableId.c_str());
         return false;
     }
 

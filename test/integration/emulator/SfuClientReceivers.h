@@ -5,6 +5,7 @@
 #include "api/SimulcastGroup.h"
 #include "bridge/RtpMap.h"
 #include "bridge/engine/PacketCache.h"
+#include "bridge/engine/SendPliJob.h"
 #include "bridge/engine/SsrcInboundContext.h"
 #include "bridge/engine/VideoMissingPacketsTracker.h"
 #include "codec/Opus.h"
@@ -130,6 +131,7 @@ public:
         {
             return;
         }
+        _context.hasDecryptedPackets = true;
 
         auto rtpHeader = rtp::RtpHeader::fromPacket(packet);
         if (_emulatedAudioType == Audio::Opus)
@@ -262,11 +264,19 @@ public:
         }
 
         auto& inboundContext = it->second;
+        const auto payload = rtpHeader->getPayload();
+        const auto payloadSize = packet.getLength() - rtpHeader->headerLength();
+        const auto payloadDescriptorSize = codec::Vp8Header::getPayloadDescriptorSize(payload, payloadSize);
+        const bool isKeyframe = codec::Vp8Header::isKeyFrame(payload, payloadDescriptorSize);
 
         if (!inboundContext.videoMissingPacketsTracker)
         {
             inboundContext.lastReceivedExtendedSequenceNumber = extendedSequenceNumber;
             inboundContext.videoMissingPacketsTracker = std::make_shared<bridge::VideoMissingPacketsTracker>();
+            if (!isKeyframe)
+            {
+                inboundContext.pliScheduler.triggerPli();
+            }
         }
 
         inboundContext.onRtpPacketReceived(timestamp);
@@ -283,6 +293,7 @@ public:
         {
             return;
         }
+        inboundContext.hasDecryptedPackets = true;
 
         if (rtpHeader->payloadType == _rtpMap.payloadType)
         {
@@ -302,16 +313,13 @@ public:
                 rtpHeader->payloadType);
         }
 
-        const auto payload = rtpHeader->getPayload();
-        const auto payloadSize = packet.getLength() - rtpHeader->headerLength();
-        const auto payloadDescriptorSize = codec::Vp8Header::getPayloadDescriptorSize(payload, payloadSize);
-        const bool isKeyframe = codec::Vp8Header::isKeyFrame(payload, payloadDescriptorSize);
         const auto sequenceNumber = rtpHeader->sequenceNumber.get();
         bool missingPacketsTrackerReset = false;
 
         if (isKeyframe)
         {
             inboundContext.videoMissingPacketsTracker->reset();
+            inboundContext.pliScheduler.onKeyFrameReceived();
             missingPacketsTrackerReset = true;
             _videoDecoder.resetPacketCache();
         }

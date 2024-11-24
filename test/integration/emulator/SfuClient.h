@@ -412,6 +412,23 @@ public:
                 }
             }
         }
+
+        for (auto& videoReceiver : _videoReceivers)
+        {
+            for (auto& pair : videoReceiver->contexts)
+            {
+                auto& ssrcContext = pair.second;
+                if (ssrcContext.hasDecryptedPackets && ssrcContext.pliScheduler.shouldSendPli(timestamp, 50))
+                {
+                    auto* transport = _bundleTransport ? _bundleTransport.get() : _videoTransport.get();
+                    ssrcContext.pliScheduler.onPliSent(timestamp);
+                    transport->getJobQueue().template addJob<bridge::SendPliJob>(123123,
+                        ssrcContext.ssrc,
+                        *transport,
+                        _allocator);
+                }
+            }
+        }
     }
 
     ChannelType _channel;
