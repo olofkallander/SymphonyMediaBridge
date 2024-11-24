@@ -34,10 +34,8 @@ bool RtpForwarderReceiveBaseJob::tryUnprotectRtpPacket(const char* logGroup)
             _ssrcContext.hasDecryptedPackets = true;
             return true;
         }
-        else
-        {
-            return false;
-        }
+
+        return false;
     }
 
     if (transport::SrtpClient::shouldSetRolloverCounter(_ssrcContext.lastUnprotectedExtendedSequenceNumber,
