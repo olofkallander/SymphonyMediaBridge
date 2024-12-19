@@ -1,5 +1,5 @@
 
-function tracksOf(sdp: string): string[]
+export function tracksOf(sdp: string): string[]
 {
     var lines = sdp.split('\n');
     var tracks: Array<string> = [];
@@ -75,71 +75,59 @@ function generateSSRC()
     return (Math.floor(Math.random() * (maxSSRC - minSSRC)) + minSSRC);
 }
 
-export function addSimulcastSdpLocalDescription(inSessionDescription: RTCSessionDescriptionInit,
-    nrOfSimulcastLayers: number)
+export function addSimulcastToTrack(sdp: string, trackDesc: string, nrOfSimulcastLayers: number)
 {
-    if (!inSessionDescription.sdp)
-    {
-        return inSessionDescription;
-    }
-
-    let sdp = inSessionDescription.sdp.replace(/\r\n/g, "\n");
     let i, j;
 
-    for (const trackDesc of tracksOf(sdp))
+    if (!trackDesc.startsWith("m=video") || trackDesc.indexOf("a=ssrc-group:SIM") > 0)
     {
-        if (!trackDesc.startsWith("m=video") || trackDesc.indexOf("a=ssrc-group:SIM") > 0)
-        {
-            continue;
-        }
-
-        const regExpPrimarySsrc = /^a=ssrc:(\d+)\s+msid:(\S+)\s+(\S+)\s*$/gm
-        let primarySsrcMatch = regExpPrimarySsrc.exec(trackDesc);
-        if (!primarySsrcMatch)
-        {
-            continue;
-        }
-
-        let primarySsrc = Number(primarySsrcMatch[1]);
-        let msid = primarySsrcMatch[2];
-        console.log("prim ssrc " + primarySsrc + " " + msid);
-
-        const regExpPrimaryLabels = new RegExp("^a=ssrc:" + primarySsrc + " .*$", "gmi");
-        let labelLineMatches = trackDesc.match(regExpPrimaryLabels);
-        let labelLines = labelLineMatches.filter(lines => lines !== "").join("\n");
-        labelLines += "\n";
-
-        const regExpFid = /^a=ssrc-group:FID.+$/gm;
-        let rtxUsed = !!regExpFid.exec(trackDesc);
-        let ssrcSimulcastMap: number[] = generateSsrcMap(trackDesc, rtxUsed, primarySsrc, nrOfSimulcastLayers);
-
-        let newTrack = trackDesc + "\n";
-
-        let columns = rtxUsed ? 2 : 1;
-        const regExpPrimaryLabel = new RegExp("a=ssrc:" + primarySsrc, "gmi");
-        for (i = 1; i < nrOfSimulcastLayers; i++)
-        {
-            for (j = 0; j < columns; j++)
-            {
-                newTrack += labelLines.replace(regExpPrimaryLabel, "a=ssrc:" + ssrcSimulcastMap[i * columns + j]);
-            }
-        }
-
-        for (i = 1; i < nrOfSimulcastLayers && rtxUsed; i++)
-        {
-            newTrack += "a=ssrc-group:FID " + ssrcSimulcastMap[i * 2] + " " + ssrcSimulcastMap[i * 2 + 1] + "\n";
-        }
-
-        let simGroupStr = "a=ssrc-group:SIM";
-        for (i = 0; i < nrOfSimulcastLayers; i++)
-        {
-            simGroupStr += " " + ssrcSimulcastMap[i * columns];
-        }
-        newTrack += simGroupStr;
-
-        sdp = sdp.replace(trackDesc, newTrack);
+        return sdp;
     }
 
-    inSessionDescription.sdp = sdp;
-    return inSessionDescription;
+    const regExpPrimarySsrc = /^a=ssrc:(\d+)\s+msid:(\S+)\s+(\S+)\s*$/gm
+    let primarySsrcMatch = regExpPrimarySsrc.exec(trackDesc);
+    if (!primarySsrcMatch)
+    {
+        return sdp;
+    }
+
+    let primarySsrc = Number(primarySsrcMatch[1]);
+    let msid = primarySsrcMatch[2];
+    console.log("prim ssrc " + primarySsrc + " " + msid);
+
+    const regExpPrimaryLabels = new RegExp("^a=ssrc:" + primarySsrc + " .*$", "gmi");
+    let labelLineMatches = trackDesc.match(regExpPrimaryLabels);
+    let labelLines = labelLineMatches.filter(lines => lines !== "").join("\n");
+    labelLines += "\n";
+
+    const regExpFid = /^a=ssrc-group:FID.+$/gm;
+    let rtxUsed = !!regExpFid.exec(trackDesc);
+    let ssrcSimulcastMap: number[] = generateSsrcMap(trackDesc, rtxUsed, primarySsrc, nrOfSimulcastLayers);
+
+    let newTrack = trackDesc + "\n";
+
+    let columns = rtxUsed ? 2 : 1;
+    const regExpPrimaryLabel = new RegExp("a=ssrc:" + primarySsrc, "gmi");
+    for (i = 1; i < nrOfSimulcastLayers; i++)
+    {
+        for (j = 0; j < columns; j++)
+        {
+            newTrack += labelLines.replace(regExpPrimaryLabel, "a=ssrc:" + ssrcSimulcastMap[i * columns + j]);
+        }
+    }
+
+    for (i = 1; i < nrOfSimulcastLayers && rtxUsed; i++)
+    {
+        newTrack += "a=ssrc-group:FID " + ssrcSimulcastMap[i * 2] + " " + ssrcSimulcastMap[i * 2 + 1] + "\n";
+    }
+
+    let simGroupStr = "a=ssrc-group:SIM";
+    for (i = 0; i < nrOfSimulcastLayers; i++)
+    {
+        simGroupStr += " " + ssrcSimulcastMap[i * columns];
+    }
+    newTrack += simGroupStr;
+
+    sdp = sdp.replace(trackDesc, newTrack);
+    return sdp;
 }

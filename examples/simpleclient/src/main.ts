@@ -1,10 +1,12 @@
-import {addSimulcastSdpLocalDescription} from './simulcast';
+import {addSimulcastToTrack, tracksOf} from './simulcast';
 
 const endpointIdLabel: HTMLLabelElement = <HTMLLabelElement>document.getElementById('endpointId');
 const dominantSpeakerLabel: HTMLLabelElement = <HTMLLabelElement>document.getElementById('dominantSpeaker');
 const audioElementsDiv: HTMLDivElement = <HTMLDivElement>document.getElementById('audioElements');
 const videoElementsDiv: HTMLDivElement = <HTMLDivElement>document.getElementById('videoElements');
 const h264Element: HTMLInputElement = <HTMLInputElement>document.getElementById('h264');
+const displaySurfaceElement: HTMLSelectElement = <HTMLSelectElement>document.getElementById('displaySurface');
+
 let peerConnection: RTCPeerConnection|undefined = undefined
 let localMediaStream: MediaStream|undefined = undefined;
 let localDataChannel: RTCDataChannel|undefined = undefined;
@@ -57,12 +59,25 @@ async function onPollMessage(resultJson: any)
         const remoteDescription = new RTCSessionDescription({type : 'offer', sdp : resultJson.payload});
         await peerConnection.setRemoteDescription(remoteDescription);
 
+        // TODO: check which msid has content slides and enlarge that video stream view
+
         let localDescription = await peerConnection.createAnswer();
 
         // Add simulcast layers to the video stream with SDP munging
-        localDescription = addSimulcastSdpLocalDescription(localDescription, 3);
+        let sdp = localDescription.sdp.replace(/\r\n/g, "\n");
+        for (const trackDesc of tracksOf(sdp))
+        {
+            if (!trackDesc.startsWith("m=video") || trackDesc.indexOf("a=ssrc-group:SIM") > 0 ||
+                trackDesc.indexOf("a=recvonly") > 0)
+            {
+                continue;
+            }
+            sdp = addSimulcastToTrack(sdp, trackDesc, 3);
+            break; // only add to first as the seoncdary stream is assumed to be slides
+        }
 
-        console.log('set local SDP ' + localDescription.sdp);
+        console.log('set local SDP ' + sdp);
+        localDescription.sdp = sdp;
         await peerConnection.setLocalDescription(localDescription);
     }
 }
@@ -118,6 +133,8 @@ function onTrack(event: RTCTrackEvent)
 
         if (stream.getVideoTracks().length !== 0)
         {
+
+            console.log("video settings " + JSON.stringify(event.track.contentHint));
             const videoElement = <HTMLVideoElement>document.createElement('video');
             videoElement.autoplay = true;
             videoElement.srcObject = stream;
@@ -294,6 +311,17 @@ async function joinClicked()
         console.log(devices);
     })();
 
+    let screenCapture: MediaStream;
+    if (displaySurfaceElement.value != "disable")
+    {
+        const displayMediaOptions: DisplayMediaStreamOptions = {
+            video : {
+                displaySurface : displaySurfaceElement.value,
+            }
+        };
+        screenCapture = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+    }
+
     peerConnection = new RTCPeerConnection();
     peerConnection.onicegatheringstatechange = onIceGatheringStateChange;
     peerConnection.ontrack = onTrack;
@@ -313,6 +341,11 @@ async function joinClicked()
 
     console.log('Got local stream ' + JSON.stringify(localMediaStream));
     localMediaStream.getTracks().forEach(track => peerConnection.addTrack(track, localMediaStream));
+    if (screenCapture)
+    {
+        var videoTrack = screenCapture.getVideoTracks()[0];
+        peerConnection.addTrack(videoTrack, screenCapture);
+    }
 
     localDataChannel = peerConnection.createDataChannel("webrtc-datachannel", {ordered : true});
     localDataChannel.onmessage = onDataChannelMessage;

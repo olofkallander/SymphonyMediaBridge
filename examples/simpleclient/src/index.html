@@ -11,6 +11,14 @@
                 <td id="joincell"><button id="join">Join</button></td>
                 <td><button id="hangup">Hangup</button></td>
                 <td><input type="checkbox" id="h264" name="H.264"></td>
+                <td><fieldset id="options" style="display: block;"><legend>Advanced options</legend>
+                <select id="displaySurface">
+                    <option value="disable" selected="">No screen share</option>
+                    <option value="default" >Show default sharing options</option>
+                    <option value="browser">Prefer to share a browser tab</option>
+                    <option value="window">Prefer to share a window</option>
+                    <option value="monitor">Prefer to share an entire screen</option>
+                </select></fieldset></td>
             </tr>
             <tr>
                 <td>My endpoint id: <label id="endpointId"></label></td>
