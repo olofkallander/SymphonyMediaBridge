@@ -2,7 +2,6 @@ package com.symphony.simpleserver.sdp.objects;
 
 import com.symphony.simpleserver.sdp.Candidate;
 import com.symphony.simpleserver.sdp.ParserFailedException;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -10,34 +9,41 @@ import java.util.List;
 /**
  * Represents an m-line in a SessionDescription.
  */
-public class MediaDescription {
-    public enum Type {
-        AUDIO, VIDEO, APPLICATION;
+public class MediaDescription
+{
+    public enum Type
+    {
+        AUDIO,
+        VIDEO,
+        APPLICATION;
 
-        public static Type fromString(String value) throws ParserFailedException {
-            switch (value) {
-                case "audio":
-                    return AUDIO;
-                case "video":
-                    return VIDEO;
-                case "application":
-                    return APPLICATION;
-                default:
-                    throw new ParserFailedException(value);
+        public static Type fromString(String value) throws ParserFailedException
+        {
+            switch (value)
+            {
+            case "audio":
+                return AUDIO;
+            case "video":
+                return VIDEO;
+            case "application":
+                return APPLICATION;
+            default:
+                throw new ParserFailedException(value);
             }
         }
 
-        @Override
-        public String toString() {
-            switch (this) {
-                case AUDIO:
-                    return "audio";
-                case VIDEO:
-                    return "video";
-                case APPLICATION:
-                    return "application";
-                default:
-                    throw new AssertionError();
+        @Override public String toString()
+        {
+            switch (this)
+            {
+            case AUDIO:
+                return "audio";
+            case VIDEO:
+                return "video";
+            case APPLICATION:
+                return "application";
+            default:
+                throw new AssertionError();
             }
         }
     }
@@ -80,7 +86,8 @@ public class MediaDescription {
 
     public SctpMap sctpMap;
 
-    public MediaDescription() {
+    public MediaDescription()
+    {
         this.type = null;
         this.port = 0;
         this.protocol = null;
@@ -110,7 +117,8 @@ public class MediaDescription {
         this.sctpMap = null;
     }
 
-    public MediaDescription(MediaDescription other) {
+    public MediaDescription(MediaDescription other)
+    {
         this.type = other.type;
         this.port = other.port;
         this.protocol = other.protocol;
@@ -138,7 +146,8 @@ public class MediaDescription {
 
         this.rtcpFbWildcard = other.rtcpFbWildcard == null ? null : new RtcpFb(other.rtcpFbWildcard);
         this.rtcpFbs = new HashMap<>();
-        for (Integer otherRtcpFbsKey : other.rtcpFbs.keySet()) {
+        for (Integer otherRtcpFbsKey : other.rtcpFbs.keySet())
+        {
             final List<RtcpFb> otherRtcpFbs = other.rtcpFbs.get(otherRtcpFbsKey);
             final ArrayList<RtcpFb> thisRtcpFbs = new ArrayList<>();
             otherRtcpFbs.forEach(element -> thisRtcpFbs.add(new RtcpFb(element)));
@@ -161,80 +170,95 @@ public class MediaDescription {
         this.sctpMap = other.sctpMap == null ? null : new SctpMap(other.sctpMap);
     }
 
-    @Override
-    public String toString() {
+    @Override public String toString()
+    {
         final StringBuilder stringBuilder = new StringBuilder(4096);
 
         appendMLine(stringBuilder);
 
-        if (connection != null) {
+        if (connection != null)
+        {
             stringBuilder.append(connection.toString());
         }
 
-        if (rtcp != null) {
+        if (rtcp != null)
+        {
             stringBuilder.append(rtcp.toString());
         }
 
-        if (rtcpMux) {
+        if (rtcpMux)
+        {
             stringBuilder.append("a=rtcp-mux\r\n");
         }
 
-        if (mid != null) {
+        if (mid != null)
+        {
             stringBuilder.append("a=mid:");
             stringBuilder.append(mid);
             stringBuilder.append("\r\n");
         }
 
-        if (label != null) {
+        if (label != null)
+        {
             stringBuilder.append("a=label:");
             stringBuilder.append(label);
             stringBuilder.append("\r\n");
         }
 
-        if (bandwidth != null) {
+        if (bandwidth != null)
+        {
             stringBuilder.append(bandwidth.toString());
         }
 
-        if (ice != null) {
+        if (ice != null)
+        {
             stringBuilder.append(ice.toString());
         }
 
-        if (fingerprint != null) {
+        if (fingerprint != null)
+        {
             stringBuilder.append(fingerprint.toString());
         }
 
-        if (ptime != null) {
+        if (ptime != null)
+        {
             stringBuilder.append("a=ptime:");
             stringBuilder.append(ptime.toString());
             stringBuilder.append("\r\n");
         }
 
-        if (maxPtime != null) {
+        if (maxPtime != null)
+        {
             stringBuilder.append("a=maxptime:");
             stringBuilder.append(maxPtime.toString());
             stringBuilder.append("\r\n");
         }
 
-        if (direction != null) {
+        if (direction != null)
+        {
             stringBuilder.append("a=");
             stringBuilder.append(direction.toString());
             stringBuilder.append("\r\n");
         }
 
-        if (setup != null) {
+        if (setup != null)
+        {
             stringBuilder.append("a=setup:");
             stringBuilder.append(setup.toString());
             stringBuilder.append("\r\n");
         }
 
-        for (Integer payloadType : payloadTypes) {
+        for (Integer payloadType : payloadTypes)
+        {
             final RtpMap rtpMap = rtpMaps.get(payloadType);
-            if (rtpMap != null) {
+            if (rtpMap != null)
+            {
                 stringBuilder.append(rtpMap.toString(payloadType));
             }
 
             final String fmtp = fmtps.get(payloadType);
-            if (fmtp != null) {
+            if (fmtp != null)
+            {
                 stringBuilder.append("a=fmtp:");
                 stringBuilder.append(payloadType.toString());
                 stringBuilder.append(" ");
@@ -243,46 +267,56 @@ public class MediaDescription {
             }
 
             final List<RtcpFb> payloadTypeRtcpfbs = rtcpFbs.get(payloadType);
-            if (payloadTypeRtcpfbs != null) {
-                for (RtcpFb rtcpFb : payloadTypeRtcpfbs) {
+            if (payloadTypeRtcpfbs != null)
+            {
+                for (RtcpFb rtcpFb : payloadTypeRtcpfbs)
+                {
                     stringBuilder.append(rtcpFb.toString(payloadType.toString()));
                 }
             }
         }
 
-        if (rtcpFbWildcard != null) {
+        if (rtcpFbWildcard != null)
+        {
             stringBuilder.append(rtcpFbWildcard.toString("*"));
         }
 
-        for (ExtMap extMap : headerExtensions) {
+        for (ExtMap extMap : headerExtensions)
+        {
             stringBuilder.append(extMap.toString());
         }
 
-        if (content != null) {
+        if (content != null)
+        {
             stringBuilder.append("a=content:" + content);
             stringBuilder.append("\r\n");
         }
 
-        for (SsrcGroup ssrcGroup : ssrcGroups) {
+        for (SsrcGroup ssrcGroup : ssrcGroups)
+        {
             stringBuilder.append(ssrcGroup.toString());
         }
 
-        for (Ssrc ssrc : ssrcs) {
+        for (Ssrc ssrc : ssrcs)
+        {
             stringBuilder.append(ssrc.toString());
         }
 
-        for (Candidate candidate : candidates) {
+        for (Candidate candidate : candidates)
+        {
             stringBuilder.append(candidate.toString());
         }
 
-        if (sctpMap != null) {
+        if (sctpMap != null)
+        {
             stringBuilder.append(sctpMap.toString());
         }
 
         return stringBuilder.toString();
     }
 
-    private void appendMLine(StringBuilder stringBuilder) {
+    private void appendMLine(StringBuilder stringBuilder)
+    {
         stringBuilder.append("m=");
         stringBuilder.append(type.toString());
         stringBuilder.append(" ");
@@ -290,12 +324,14 @@ public class MediaDescription {
         stringBuilder.append(" ");
         stringBuilder.append(protocol);
 
-        for (Integer payloadType : payloadTypes) {
+        for (Integer payloadType : payloadTypes)
+        {
             stringBuilder.append(" ");
             stringBuilder.append(payloadType.toString());
         }
 
-        if (type == Type.APPLICATION && applicationParameter != null) {
+        if (type == Type.APPLICATION && applicationParameter != null)
+        {
             stringBuilder.append(" ");
             stringBuilder.append(applicationParameter);
         }

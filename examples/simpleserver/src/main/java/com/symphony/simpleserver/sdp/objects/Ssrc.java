@@ -53,6 +53,7 @@ public class Ssrc
             result += "a=ssrc:" + ssrc + " cname:" + cname + "\r\n";
         }
 
+        // use msid only as that is more efficient to associate stream with its tracks.
         if (label != null && mslabel != null)
         {
             result += "a=ssrc:" + ssrc + " msid:" + mslabel + " " + label + "\r\n";

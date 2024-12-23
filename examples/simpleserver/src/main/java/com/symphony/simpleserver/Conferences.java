@@ -9,7 +9,6 @@ import com.symphony.simpleserver.sdp.SessionDescription;
 import com.symphony.simpleserver.sdp.objects.MediaDescription;
 import com.symphony.simpleserver.sdp.objects.Types;
 import com.symphony.simpleserver.smb.SymphonyMediaBridge;
-import com.symphony.simpleserver.smb.api.EndpointMediaStreams;
 import com.symphony.simpleserver.smb.api.MediaStream;
 import com.symphony.simpleserver.smb.api.Parser;
 import com.symphony.simpleserver.smb.api.SmbEndpointDescription;
@@ -47,7 +46,7 @@ import org.springframework.stereotype.Component;
     private final Parser parser;
     private final Map<String, Endpoint> endpoints;
     private final ConcurrentHashMap<String, LinkedBlockingQueue<String>> messageQueues;
-    private final List<EndpointMediaStreams> endpointMediaStreams;
+
     private String conferenceId;
 
     @Autowired public Conferences(SymphonyMediaBridge symphonyMediaBridge, Parser parser)
@@ -62,7 +61,6 @@ import org.springframework.stereotype.Component;
         this.symphonyMediaBridge = symphonyMediaBridge;
         this.endpoints = new HashMap<>();
         this.messageQueues = new ConcurrentHashMap<>();
-        this.endpointMediaStreams = new ArrayList<>();
         this.conferenceId = null;
     }
 
@@ -83,7 +81,7 @@ import org.springframework.stereotype.Component;
         final var allocateEndpointResponse = symphonyMediaBridge.allocateEndpoint(conferenceId, endpointId);
         final var endpointDescription =
             objectMapper.treeToValue(allocateEndpointResponse, SmbEndpointDescription.class);
-        final var offer = parser.makeSdpOffer(endpointDescription, endpointId, endpointMediaStreams);
+        final var offer = parser.makeSdpOffer(endpointDescription, endpointId);
         endpoints.put(endpointId, new Endpoint(endpointDescription));
 
         LOGGER.info("Join, endpointId {}, conferenceId {}, SDP {}", endpointId, conferenceId, offer.toString());
@@ -100,6 +98,10 @@ import org.springframework.stereotype.Component;
         if (message.type.equals("answer"))
         {
             return onAnswer(endpointId, message);
+        }
+        else if (message.type.equals("addmedia"))
+        {
+            return onAddMedia(endpointId, message);
         }
         else if (message.type.equals("hangup"))
         {
@@ -120,42 +122,29 @@ import org.springframework.stereotype.Component;
 
         final var answer = new SessionDescription(message.payload);
         final var endpointDescription = parser.makeEndpointDescription(answer);
-        final var mediaStreams = new ArrayList<MediaStream>();
 
-        for (var mediaDescription : answer.mediaDescriptions)
-        {
-            if (mediaDescription.direction != Types.Direction.SEND_RECV || mediaDescription.ssrcs.isEmpty())
-            {
-                continue;
-            }
-
-            final var mid = new MediaStream(mediaDescription.type);
-
-            if (mediaDescription.type == MediaDescription.Type.AUDIO)
-            {
-                mid.ssrcs = new ArrayList<>(mediaDescription.ssrcs);
-                mid.ssrcGroups = List.of();
-            }
-            else if (mediaDescription.type == MediaDescription.Type.VIDEO)
-            {
-                mid.type = MediaDescription.Type.VIDEO;
-                mid.ssrcs = new ArrayList<>(mediaDescription.ssrcs);
-                mid.ssrcGroups = new ArrayList<>(mediaDescription.ssrcGroups);
-            }
-
-            mediaStreams.add(mid);
-        }
-
-        final var stringBuilder = new StringBuilder();
-        mediaStreams.forEach(mediaStream -> {
-            stringBuilder.append(mediaStream.toString());
-            stringBuilder.append(" ");
-        });
-        LOGGER.info("Media streams in answer {}", stringBuilder);
-
-        endpointMediaStreams.add(new EndpointMediaStreams(endpointId, mediaStreams));
         LOGGER.info("Configure endpoint {} {}", endpointId, endpointDescription.toString());
         symphonyMediaBridge.configureEndpoint(conferenceId, endpointId, endpointDescription);
+        endpoint.isConfigured = true;
+        endpoints.put(endpointId, endpoint);
+
+        return true;
+    }
+
+    private boolean onAddMedia(String endpointId, Message message)
+        throws ParserFailedException, IOException, InterruptedException, ParseException
+    {
+        final var endpoint = endpoints.get(endpointId);
+        if (endpoint == null || !endpoint.isConfigured)
+        {
+            return true;
+        }
+
+        final var answer = new SessionDescription(message.payload);
+        final var endpointDescription = parser.makeEndpointDescription(answer);
+
+        LOGGER.info("Configure endpoint {} {}", endpointId, endpointDescription.toString());
+        symphonyMediaBridge.reconfigureEndpoint(conferenceId, endpointId, endpointDescription);
         endpoint.isConfigured = true;
         endpoints.put(endpointId, endpoint);
 
@@ -233,18 +222,9 @@ import org.springframework.stereotype.Component;
             }
         }
 
-        for (var endpointMediaStreamsEntry : endpointMediaStreams)
-        {
-            if (endpointIdsToRemove.contains(endpointMediaStreamsEntry.endpointId))
-            {
-                endpointMediaStreamsEntry.active = false;
-            }
-        }
-
         if (endpoints.isEmpty())
         {
             conferenceId = null;
-            endpointMediaStreams.clear();
         }
     }
 }

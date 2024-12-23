@@ -5,7 +5,7 @@ import com.symphony.simpleserver.sdp.ParserFailedException;
 import com.symphony.simpleserver.sdp.SessionDescription;
 import com.symphony.simpleserver.sdp.objects.*;
 import com.symphony.simpleserver.sdp.objects.Types.Direction;
-import com.symphony.simpleserver.smb.api.SmbVideoStream.SmbVideoSource;
+import com.symphony.simpleserver.smb.api.SmbVideoTrack.SmbVideoSource;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,9 +20,8 @@ import org.springframework.stereotype.Component;
 
     public Parser() {}
 
-    public SessionDescription makeSdpOffer(SmbEndpointDescription endpointDescription,
-        String endpointId,
-        List<EndpointMediaStreams> endpointMediaStreams) throws ParserFailedException
+    public SessionDescription makeSdpOffer(SmbEndpointDescription endpointDescription, String endpointId)
+        throws ParserFailedException
     {
         int mediaDescriptionIndex = 0;
 
@@ -80,7 +79,7 @@ import org.springframework.stereotype.Component;
             mediaDescriptionIndex++;
         }
 
-        for (final var smbVideoStream : endpointDescription.video.streams)
+        for (final var smbVideoStream : endpointDescription.video.tracks)
         {
             final var smbVideoMain = new Ssrc(smbVideoStream.sources.get(0).main);
 
@@ -134,6 +133,7 @@ import org.springframework.stereotype.Component;
             if (smbVideoStream.content.equals("slides"))
             {
                 video.content = smbVideoStream.content;
+                video.label = "applicationsharing-video";
             }
 
             offer.mediaDescriptions.add(video);
@@ -333,6 +333,10 @@ import org.springframework.stereotype.Component;
 
         endpointDescription.bundleTransport = bundleTransport;
 
+        final var video = new SmbVideo();
+        video.tracks = new ArrayList<>();
+        video.payloadTypes = new ArrayList<>();
+
         for (final var mediaDescription : sdpAnswer.mediaDescriptions)
         {
             if (mediaDescription.type != MediaDescription.Type.APPLICATION &&
@@ -387,17 +391,12 @@ import org.springframework.stereotype.Component;
             }
             else if (mediaDescription.type == MediaDescription.Type.VIDEO)
             {
-                final var video = new SmbVideo();
-                final var streamsMap = new HashMap<String, SmbVideoStream>();
+                final var track = new SmbVideoTrack();
+                track.sources = new ArrayList<>();
+                track.content = mediaDescription.content != null ? mediaDescription.content : "video";
 
                 mediaDescription.ssrcs.forEach(ssrc -> {
-                    final var smbVideoStream = streamsMap.computeIfAbsent(ssrc.mslabel, key -> {
-                        final var value = new SmbVideoStream();
-                        value.id = ssrc.mslabel;
-                        value.content = "slides".equals(mediaDescription.content) ? "slides" : "video";
-                        value.sources = new ArrayList<>();
-                        return value;
-                    });
+                    track.id = ssrc.mslabel; // will be same for all ssrcs, or this is not unified plan SDP
 
                     final var feedbackGroup = mediaDescription.ssrcGroups.stream()
                                                   .filter(SsrcGroup::isFeedback)
@@ -406,22 +405,21 @@ import org.springframework.stereotype.Component;
 
                     if (feedbackGroup.isPresent() && feedbackGroup.get().isMainSsrc(ssrc))
                     {
-                        final var smbVideoSource = new SmbVideoStream.SmbVideoSource();
+                        final var smbVideoSource = new SmbVideoTrack.SmbVideoSource();
                         smbVideoSource.main = Long.parseLong(feedbackGroup.get().ssrcs.get(0));
                         smbVideoSource.feedback = Long.parseLong(feedbackGroup.get().ssrcs.get(1));
-                        smbVideoStream.sources.add(smbVideoSource);
+                        track.sources.add(smbVideoSource);
                     }
                     else if (feedbackGroup.isEmpty())
                     {
-                        final var smbVideoSource = new SmbVideoStream.SmbVideoSource();
+                        final var smbVideoSource = new SmbVideoTrack.SmbVideoSource();
                         smbVideoSource.main = Long.parseLong(ssrc.ssrc);
-                        smbVideoStream.sources.add(smbVideoSource);
+                        track.sources.add(smbVideoSource);
                     }
                 });
 
-                video.streams = new ArrayList<>(streamsMap.values());
+                video.tracks.add(track);
 
-                video.payloadTypes = new ArrayList<>();
                 for (var payloadType : mediaDescription.payloadTypes)
                 {
                     final var smbPayloadType = new SmbPayloadType();
@@ -451,8 +449,6 @@ import org.springframework.stereotype.Component;
                     smbRtpHeaderExtension.uri = element.value;
                     video.rtpHeaderExtensions.add(smbRtpHeaderExtension);
                 });
-
-                endpointDescription.video = video;
             }
             else if (mediaDescription.type == MediaDescription.Type.APPLICATION)
             {
@@ -460,6 +456,11 @@ import org.springframework.stereotype.Component;
                 data.port = mediaDescription.sctpMap.number;
                 endpointDescription.data = data;
             }
+        }
+
+        if (!video.tracks.isEmpty())
+        {
+            endpointDescription.video = video;
         }
 
         return endpointDescription;

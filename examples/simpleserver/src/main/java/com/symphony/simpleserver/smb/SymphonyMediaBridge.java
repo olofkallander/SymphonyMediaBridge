@@ -79,6 +79,20 @@ import org.springframework.stereotype.Component;
         LOGGER.info("Response {}", response.statusCode);
     }
 
+    public void reconfigureEndpoint(String conferenceId, String endpointId, SmbEndpointDescription endpointDescription)
+        throws IOException, ParseException
+    {
+
+        final var requestBodyJson = (ObjectNode)objectMapper.valueToTree(endpointDescription);
+        requestBodyJson.put("action", "reconfigure");
+
+        LOGGER.info("Request\n{}", objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestBodyJson));
+
+        final var url = BASE_URL + conferenceId + "/" + endpointId;
+        final var response = httpClient.put(url, requestBodyJson);
+        LOGGER.info("Response {}", response.statusCode);
+    }
+
     public void deleteEndpoint(String conferenceId, String endpointId) throws IOException, ParseException
     {
         final var url = BASE_URL + conferenceId + "/" + endpointId;

@@ -1,29 +1,64 @@
 
-export function tracksOf(sdp: string): string[]
-{
-    var lines = sdp.split('\n');
-    var tracks: Array<string> = [];
+export interface UserVideoMapItem {
+    ssrc: Number;
+    msid: String;
+    element: HTMLVideoElement;
+}
 
-    var intrack = false;
-    var track = "";
-    for (var l of lines)
+
+function getSsrcOfVideoMsid(trackId: String, peerConnection: RTCPeerConnection): Number
+{
+    var rtpReceivers = peerConnection.getReceivers();
+    for (var rtpReceiver of rtpReceivers)
     {
-        if (!intrack && l.startsWith("m="))
+        var ssrcs = rtpReceiver.getSynchronizationSources();
+        if (ssrcs.length == 0 || rtpReceiver.track.kind != "video")
         {
-            track = l;
-            intrack = true;
+            continue;
         }
-        else if (intrack && l.startsWith("m="))
+
+        if (rtpReceiver.track.label == trackId)
         {
-            tracks.push(track);
-            track = l;
-        }
-        else if (intrack)
-        {
-            track += "\n" + l;
+            return ssrcs[0].source;
         }
     }
-    return tracks;
+    return null;
+}
+
+export function getVideoElementBySsrc(ssrc: Number,
+    peerConnection: RTCPeerConnection,
+    receivers: Map<string, UserVideoMapItem>): HTMLVideoElement
+{
+    var rtpReceivers = peerConnection.getReceivers();
+    for (var rtpReceiver of rtpReceivers)
+    {
+        var ssrcs = rtpReceiver.getSynchronizationSources();
+        if (ssrcs.length == 0 || rtpReceiver.track.kind != "video")
+        {
+            continue;
+        }
+
+        if (ssrcs[0].source == ssrc)
+        {
+            var mapItem = receivers.get(rtpReceiver.track.label);
+            return mapItem.element;
+        }
+    }
+    return null;
+}
+
+export function getAllUserMapSsrcs(umap: any): Set<Number>
+{
+    var s = new Set<Number>();
+    for (var endpoint of umap.endpoints)
+    {
+        for (var ssrc of endpoint.ssrcs)
+        {
+            s.add(ssrc);
+        }
+    }
+
+    return s;
 }
 
 function generateSsrcMap(trackDesc: string, rtxUsed: boolean, primarySsrc: number, nrOfSimulcastLayers: number):

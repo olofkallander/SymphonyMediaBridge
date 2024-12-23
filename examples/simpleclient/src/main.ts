@@ -1,4 +1,5 @@
-import {addSimulcastToTrack, tracksOf} from './simulcast';
+import {addAttributeToTrack, stripSdp, tracksOf} from './sdpHelper';
+import {addSimulcastToTrack, getAllUserMapSsrcs, getVideoElementBySsrc, UserVideoMapItem} from './simulcast';
 
 const endpointIdLabel: HTMLLabelElement = <HTMLLabelElement>document.getElementById('endpointId');
 const dominantSpeakerLabel: HTMLLabelElement = <HTMLLabelElement>document.getElementById('dominantSpeaker');
@@ -6,6 +7,7 @@ const audioElementsDiv: HTMLDivElement = <HTMLDivElement>document.getElementById
 const videoElementsDiv: HTMLDivElement = <HTMLDivElement>document.getElementById('videoElements');
 const h264Element: HTMLInputElement = <HTMLInputElement>document.getElementById('h264');
 const displaySurfaceElement: HTMLSelectElement = <HTMLSelectElement>document.getElementById('displaySurface');
+let contentShareMsid: string = undefined;
 
 let peerConnection: RTCPeerConnection|undefined = undefined
 let localMediaStream: MediaStream|undefined = undefined;
@@ -13,18 +15,38 @@ let localDataChannel: RTCDataChannel|undefined = undefined;
 let endpointId: string|undefined = undefined;
 let conferenceId: string|undefined = undefined;
 let remoteMediaStreams: Set<string> = new Set();
+let storedRemoteDescription: RTCSessionDescription;
 
 const serverUrl = 'https://localhost:8081/conferences/';
 
-interface UserVideoMapItem
-{
-    ssrc: Number;
-    msid: String;
-    element: HTMLVideoElement;
-}
-
 let receivers = new Map<string, UserVideoMapItem>();
 let keepPolling = true;
+
+function getSsrcOfVideoElement(element: HTMLVideoElement,
+    peerConnection: RTCPeerConnection,
+    receivers: Map<string, UserVideoMapItem>)
+{
+    var rtpReceivers = peerConnection.getReceivers();
+
+    for (var rx of receivers)
+    {
+        if (rx[1].element == element)
+        {
+            for (var rtpReceiver of rtpReceivers)
+            {
+                var ssrcs = rtpReceiver.getSynchronizationSources();
+                if (ssrcs.length == 0 || rtpReceiver.track.kind != "video" || rtpReceiver.track.id != rx[1].msid)
+                {
+                    continue;
+                }
+
+                return ssrcs[0].source;
+            }
+        }
+    }
+
+    return null;
+}
 
 // Keeps a long-poll running for simpleserver to simpleclient communication
 async function startPoll()
@@ -57,9 +79,21 @@ async function onPollMessage(resultJson: any)
     if (resultJson.type === 'offer')
     {
         const remoteDescription = new RTCSessionDescription({type : 'offer', sdp : resultJson.payload});
-        await peerConnection.setRemoteDescription(remoteDescription);
+        for (const trackDesc of tracksOf(remoteDescription.sdp))
+        {
+            if (trackDesc.indexOf("content:slides") > 0)
+            {
+                let regmsid = /^a=ssrc:(\d+)\s+msid:(\S+)\s+(\S+)\s*$/gm
+                let match = regmsid.exec(trackDesc);
+                if (match)
+                {
+                    contentShareMsid = match[2];
+                }
+            }
+        }
 
-        // TODO: check which msid has content slides and enlarge that video stream view
+        await peerConnection.setRemoteDescription(remoteDescription);
+        storedRemoteDescription = remoteDescription;
 
         let localDescription = await peerConnection.createAnswer();
 
@@ -133,7 +167,6 @@ function onTrack(event: RTCTrackEvent)
 
         if (stream.getVideoTracks().length !== 0)
         {
-
             console.log("video settings " + JSON.stringify(event.track.contentHint));
             const videoElement = <HTMLVideoElement>document.createElement('video');
             videoElement.autoplay = true;
@@ -153,83 +186,6 @@ function onTrack(event: RTCTrackEvent)
             console.log(`${videoElementsDiv.children.length} Added video element ${stream.id}`);
         }
     }
-}
-
-function getSsrcOfVideoMsid(trackId: String): Number
-{
-    var rtpReceivers = peerConnection.getReceivers();
-    for (var rtpReceiver of rtpReceivers)
-    {
-        var ssrcs = rtpReceiver.getSynchronizationSources();
-        if (ssrcs.length == 0 || rtpReceiver.track.kind != "video")
-        {
-            continue;
-        }
-
-        if (rtpReceiver.track.label == trackId)
-        {
-            return ssrcs[0].source;
-        }
-    }
-    return null;
-}
-
-function getVideoElementBySsrc(ssrc: Number): HTMLVideoElement
-{
-    var rtpReceivers = peerConnection.getReceivers();
-    for (var rtpReceiver of rtpReceivers)
-    {
-        var ssrcs = rtpReceiver.getSynchronizationSources();
-        if (ssrcs.length == 0 || rtpReceiver.track.kind != "video")
-        {
-            continue;
-        }
-
-        if (ssrcs[0].source == ssrc)
-        {
-            var mapItem = receivers.get(rtpReceiver.track.label);
-            return mapItem.element;
-        }
-    }
-    return null;
-}
-
-function getSsrcOfVideoElement(element: HTMLVideoElement)
-{
-    var rtpReceivers = peerConnection.getReceivers();
-
-    for (var rx of receivers)
-    {
-        if (rx[1].element == element)
-        {
-            for (var rtpReceiver of rtpReceivers)
-            {
-                var ssrcs = rtpReceiver.getSynchronizationSources();
-                if (ssrcs.length == 0 || rtpReceiver.track.kind != "video" || rtpReceiver.track.id != rx[1].msid)
-                {
-                    continue;
-                }
-
-                return ssrcs[0].source;
-            }
-        }
-    }
-
-    return null;
-}
-
-function getAllUserMapSsrcs(umap: any): Set<Number>
-{
-    var s = new Set<Number>();
-    for (var endpoint of umap.endpoints)
-    {
-        for (var ssrc of endpoint.ssrcs)
-        {
-            s.add(ssrc);
-        }
-    }
-
-    return s;
 }
 
 function onDataChannelMessage(event: MessageEvent<any>)
@@ -256,7 +212,7 @@ function onDataChannelMessage(event: MessageEvent<any>)
         for (var v of videoElementsDiv.children)
         {
             var videoElem = v as HTMLVideoElement;
-            const ssrc = getSsrcOfVideoElement(videoElem);
+            const ssrc = getSsrcOfVideoElement(videoElem, peerConnection, receivers);
             if (ssrc != null && !(ssrc in activeUsers))
             {
                 videoElem.hidden = true;
@@ -268,9 +224,9 @@ function onDataChannelMessage(event: MessageEvent<any>)
             var firstEndpoint = message.endpoints[0];
             for (var ssrc of firstEndpoint.ssrcs)
             {
-                console.log("ssrc speaking", ssrc)
+                console.log("ssrc speaking", ssrc);
 
-                var videoElement = getVideoElementBySsrc(ssrc);
+                var videoElement = getVideoElementBySsrc(ssrc, peerConnection, receivers);
 
                 if (videoElement && videoElementsDiv.firstChild != videoElement)
                 {
@@ -293,8 +249,11 @@ function onDataChannelMessage(event: MessageEvent<any>)
         {
             for (var ssrc of firstEndpoint.ssrcs)
             {
-                var videoElement = getVideoElementBySsrc(ssrc);
-                videoElement.hidden = false;
+                var videoElement = getVideoElementBySsrc(ssrc, peerConnection, receivers);
+                if (videoElement)
+                {
+                    videoElement.hidden = false;
+                }
             }
             return;
         }
@@ -304,23 +263,6 @@ function onDataChannelMessage(event: MessageEvent<any>)
 async function joinClicked()
 {
     console.log('Join clicked ...');
-
-    (async () => {
-        await navigator.mediaDevices.getUserMedia({audio : true, video : true});
-        let devices = await navigator.mediaDevices.enumerateDevices();
-        console.log(devices);
-    })();
-
-    let screenCapture: MediaStream;
-    if (displaySurfaceElement.value != "disable")
-    {
-        const displayMediaOptions: DisplayMediaStreamOptions = {
-            video : {
-                displaySurface : displaySurfaceElement.value,
-            }
-        };
-        screenCapture = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
-    }
 
     peerConnection = new RTCPeerConnection();
     peerConnection.onicegatheringstatechange = onIceGatheringStateChange;
@@ -341,11 +283,6 @@ async function joinClicked()
 
     console.log('Got local stream ' + JSON.stringify(localMediaStream));
     localMediaStream.getTracks().forEach(track => peerConnection.addTrack(track, localMediaStream));
-    if (screenCapture)
-    {
-        var videoTrack = screenCapture.getVideoTracks()[0];
-        peerConnection.addTrack(videoTrack, screenCapture);
-    }
 
     localDataChannel = peerConnection.createDataChannel("webrtc-datachannel", {ordered : true});
     localDataChannel.onmessage = onDataChannelMessage;
@@ -365,6 +302,43 @@ async function joinClicked()
     endpointIdLabel.innerText = endpointId;
     keepPolling = true;
     startPoll()
+}
+
+async function contentShareClicked()
+{
+    console.log('Content share clicked ...');
+
+    let screenCapture: MediaStream;
+    const displayMediaOptions: DisplayMediaStreamOptions = {
+        video : {
+            displaySurface : displaySurfaceElement.value,
+        }
+    };
+
+    screenCapture = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+    if (screenCapture)
+    {
+        var videoTrack = screenCapture.getVideoTracks()[0];
+        peerConnection.addTrack(videoTrack, screenCapture);
+    }
+
+    let offer = await peerConnection.createOffer();
+    console.log("new answer " + offer.sdp);
+    let localSdp = stripSdp(offer.sdp, peerConnection.remoteDescription.sdp);
+    localSdp = addAttributeToTrack(localSdp, "video", 1, "a=content:slides"); // to second video
+
+    offer.sdp = localSdp.replace(/\n/gm, '\r\n');
+    console.log("set local sdp " + localSdp);
+    peerConnection.setLocalDescription(offer);
+    const url = serverUrl + `endpoints/${endpointId}/actions`;
+    const body = {type : 'addmedia', payload : offer.sdp};
+
+    const requestInit: RequestInit = {method : 'POST', mode : 'cors', cache : 'no-store', body : JSON.stringify(body)};
+    const request = new Request(url, requestInit);
+    const result = await fetch(request);
+    const resultJson = await result.json();
+
+    console.log('share result ' + JSON.stringify(resultJson));
 }
 
 async function listAudioDevices()
@@ -464,6 +438,9 @@ async function main()
 
     var hangupButton = document.getElementById('hangup') as HTMLButtonElement;
     hangupButton.onclick = hangupClicked;
+
+    var contentButton = document.getElementById('content') as HTMLButtonElement;
+    contentButton.onclick = contentShareClicked;
 
     await listAudioDevices();
     await listVideoDevices();
