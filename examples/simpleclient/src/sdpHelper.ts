@@ -75,31 +75,33 @@ export function getCodecs(sdp: string, modality: string): Set<number>
     return codecs;
 }
 
-export function getExtIdsForModality(sdp: string, modality: string): Set<number>
+export function getRtpExtensionsForModality(sdp: string, modality: string): Set<string>
 {
-    var extIds = new Set<number>();
+    var extIds = new Set<string>();
     for (var track of tracksOf(sdp))
     {
         if (track.startsWith("m=" + modality))
         {
-            return getExtIds(track);
+            return getRtpExtensions(track);
         }
     }
 
     return extIds;
 }
 
-export function getExtIds(track: string): Set<number>
+export function getRtpExtensions(track: string): Set<string>
 {
-    var extIds = new Set<number>();
+    var extIds = new Set<string>();
     let lines = track.split('\n');
-    let regexp = new RegExp("^a=extmap:(\\d+)\\s+.*$", "gm");
+
     for (var line of lines)
     {
-        let match = regexp.exec(line);
+        let regexp = new RegExp("^a=extmap:(\\d+)\\s+(\\S+)", "gm");
+        let match = regexp.exec(line.trim());
+        //'a=extmap:3 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time'
         if (match)
         {
-            extIds.add(Number.parseInt(match[1]));
+            extIds.add(match[2]);
         }
     }
     return extIds;
@@ -160,8 +162,8 @@ export function stripSdp(sdp: string, offerSdp: string): string
     sdp = sdp.replace(/\r\n/gm, '\n');
     let audioCodecs = getCodecs(offerSdp, "audio");
     let videoCodecs = getCodecs(offerSdp, "video");
-    let audioRtpExtIds = getExtIdsForModality(offerSdp, "audio");
-    let videoRtpExtIds = getExtIdsForModality(offerSdp, "video");
+    let audioRtpExtIds = getRtpExtensionsForModality(offerSdp, "audio");
+    let videoRtpExtIds = getRtpExtensionsForModality(offerSdp, "video");
 
     let newSdp = sdp.substring(0, sdp.indexOf("m=") - 1);
 
@@ -170,20 +172,20 @@ export function stripSdp(sdp: string, offerSdp: string): string
         if (track.startsWith("m=video"))
         {
             track = stripCodecsFromTrack(track, videoCodecs);
-            let unwantedExts = notInB(getExtIds(track), videoRtpExtIds);
+            let unwantedExts = notInB(getRtpExtensions(track), videoRtpExtIds);
             for (var eid of unwantedExts)
             {
-                track = removeLinesContainingPattern(track, "a=extmap:" + eid);
+                track = removeLinesContainingPattern(track, eid);
             }
             newSdp += '\n' + track;
         }
         else if (track.startsWith("m=audio"))
         {
             track = stripCodecsFromTrack(track, audioCodecs);
-            let unwantedExts = notInB(getExtIds(track), audioRtpExtIds);
+            let unwantedExts = notInB(getRtpExtensions(track), audioRtpExtIds);
             for (var eid of unwantedExts)
             {
-                track = removeLinesContainingPattern(track, "a=extmap:" + eid);
+                track = removeLinesContainingPattern(track, eid);
             }
             newSdp += '\n' + track;
         }

@@ -5,6 +5,7 @@ const endpointIdLabel: HTMLLabelElement = <HTMLLabelElement>document.getElementB
 const dominantSpeakerLabel: HTMLLabelElement = <HTMLLabelElement>document.getElementById('dominantSpeaker');
 const audioElementsDiv: HTMLDivElement = <HTMLDivElement>document.getElementById('audioElements');
 const videoElementsDiv: HTMLDivElement = <HTMLDivElement>document.getElementById('videoElements');
+const contentElementsDiv: HTMLDivElement = <HTMLDivElement>document.getElementById('contentShare');
 const h264Element: HTMLInputElement = <HTMLInputElement>document.getElementById('h264');
 const displaySurfaceElement: HTMLSelectElement = <HTMLSelectElement>document.getElementById('displaySurface');
 let contentShareMsid: string = undefined;
@@ -167,7 +168,7 @@ function onTrack(event: RTCTrackEvent)
 
         if (stream.getVideoTracks().length !== 0)
         {
-            console.log("video settings " + JSON.stringify(event.track.contentHint));
+            console.log("video settings for " + stream.id + JSON.stringify(event.track.contentHint));
             const videoElement = <HTMLVideoElement>document.createElement('video');
             videoElement.autoplay = true;
             videoElement.srcObject = stream;
@@ -175,7 +176,17 @@ function onTrack(event: RTCTrackEvent)
             videoElement.width = 320;
             videoElement.height = 180;
             videoElement.muted = false;
-            videoElementsDiv.appendChild(videoElement);
+            if (stream.id == contentShareMsid)
+            {
+                console.log("add content share element " + stream.id);
+                contentElementsDiv.appendChild(videoElement);
+                videoElement.width = 960;
+                videoElement.height = 540;
+            }
+            else
+            {
+                videoElementsDiv.appendChild(videoElement);
+            }
             var mapItem: UserVideoMapItem = {
                 ssrc : 0, // not available anyway
                 msid : event.track.id as String,
@@ -222,40 +233,33 @@ function onDataChannelMessage(event: MessageEvent<any>)
         if (message.endpoints.length > 0)
         {
             var firstEndpoint = message.endpoints[0];
-            for (var ssrc of firstEndpoint.ssrcs)
+            var ssrc = firstEndpoint.ssrcs[0];
+
+            console.log("ssrc speaking", ssrc);
+
+            var videoElement = getVideoElementBySsrc(ssrc, peerConnection, receivers);
+
+            if (videoElement && videoElementsDiv.firstChild != videoElement)
             {
-                console.log("ssrc speaking", ssrc);
-
-                var videoElement = getVideoElementBySsrc(ssrc, peerConnection, receivers);
-
-                if (videoElement && videoElementsDiv.firstChild != videoElement)
-                {
-                    videoElementsDiv.removeChild(videoElement);
-                    var speaker = videoElementsDiv.firstChild as HTMLVideoElement
-                    speaker.width = 320;
-                    speaker.height = 180;
-                    videoElementsDiv.insertBefore(videoElement, videoElementsDiv.firstChild);
-                    speaker = videoElementsDiv.firstChild as HTMLVideoElement
-                    speaker.width = 640;
-                    speaker.height = 360;
-                    speaker.hidden = false;
-                    console.log(`replace top ${videoElementsDiv.children.length}`);
-                    break;
-                }
+                videoElementsDiv.removeChild(videoElement);
+                var speaker = videoElementsDiv.firstChild as HTMLVideoElement
+                speaker.width = 320;
+                speaker.height = 180;
+                videoElementsDiv.insertBefore(videoElement, videoElementsDiv.firstChild);
+                speaker = videoElementsDiv.firstChild as HTMLVideoElement
+                speaker.width = 640;
+                speaker.height = 360;
+                speaker.hidden = false;
+                console.log(`replace top ${videoElementsDiv.children.length}`);
             }
         }
 
-        for (const endpoint of message.endpoints)
+        const endpoint = message.endpoints[0];
+        var ssrc = endpoint.ssrcs[0];
+        var videoElement = getVideoElementBySsrc(ssrc, peerConnection, receivers);
+        if (videoElement)
         {
-            for (var ssrc of firstEndpoint.ssrcs)
-            {
-                var videoElement = getVideoElementBySsrc(ssrc, peerConnection, receivers);
-                if (videoElement)
-                {
-                    videoElement.hidden = false;
-                }
-            }
-            return;
+            videoElement.hidden = false;
         }
     }
 }
@@ -321,6 +325,8 @@ async function contentShareClicked()
         var videoTrack = screenCapture.getVideoTracks()[0];
         peerConnection.addTrack(videoTrack, screenCapture);
     }
+
+    contentElementsDiv.hidden = true;
 
     let offer = await peerConnection.createOffer();
     console.log("new answer " + offer.sdp);
